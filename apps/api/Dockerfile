@@ -1,16 +1,32 @@
-# Stage 1: Build the Go binary.
-FROM golang:1.18 as builder
+# Stage 1: Build the Go binary with CGO enabled.
+FROM golang:1.18-alpine as builder
+
+# Install build dependencies for CGO and SQLite.
+RUN apk add --no-cache gcc musl-dev sqlite-dev
+
 WORKDIR /app
-COPY go.mod .
-COPY go.sum .
+
+# Copy module files and download dependencies.
+COPY go.mod go.sum ./
 RUN go mod download
+
+# Copy the rest of the source code.
 COPY . .
-# Build with CGO disabled to produce a statically linked binary.
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
+
+# Build the binary with CGO enabled.
+RUN CGO_ENABLED=1 GOOS=linux go build -o main .
 
 # Stage 2: Create a minimal image for running the binary.
 FROM alpine:latest
+
+# Install the SQLite libraries needed at runtime.
+RUN apk add --no-cache sqlite-libs
+
 WORKDIR /root/
+
+# Copy the built binary from the builder stage.
 COPY --from=builder /app/main .
+
 EXPOSE 8080
+
 CMD ["./main"]

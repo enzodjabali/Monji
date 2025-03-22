@@ -8,7 +8,6 @@ services:
     depends_on:
       - mongodb
     environment:
-      # Optionally, you could pass the MongoDB URI via an environment variable.
       - MONGO_URI=mongodb://root:strongpassword@mongodb:27017
 
   mongodb:
