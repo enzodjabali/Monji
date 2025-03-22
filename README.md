@@ -1,8 +1,8 @@
-# Monji
+# Monji - Manage your MongoDB environnements.
 
 <img src="https://monji-assets.fra1.cdn.digitaloceanspaces.com/images/monji-logo-white.png" width="300">
 
-**Tired of Web UI solutions for MongoDB that just don’t cut it?**
+### Tired of Web UI solutions for MongoDB that just don’t cut it?
 
 If you enjoy running **MongoDB on-premise** but feel limited by the current tools out there, **Monji** is a project you'd like.
 
@@ -24,3 +24,14 @@ Let’s break it down:
 - Edit your databases and documents
 - All from a single, clean UI
 - Easily deployable via a **single Docker image**
+
+---
+
+**Run the application using docker compose:**
+```bash
+docker compose up --build
+```
+
+**Default credentials:**<br>
+Email: `admin@example.com`<br>
+Password: `admin`<br>
