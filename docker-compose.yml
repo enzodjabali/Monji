@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  api:
+    build: ./apps/api/
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mongodb
+    environment:
+      # Optionally, you could pass the MongoDB URI via an environment variable.
+      - MONGO_URI=mongodb://root:strongpassword@mongodb:27017
+
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: strongpassword
+    volumes:
+      - mongodb_data:/data/db
+
+  mongo-express:
+    image: mongo-express:latest
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: strongpassword
+      ME_CONFIG_MONGODB_SERVER: mongodb
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin123
+    depends_on:
+      - mongodb
+
+volumes:
+  mongodb_data:
