@@ -19,27 +19,25 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// -------------------------------------------------------------------
-// Global variables & data structures
-// -------------------------------------------------------------------
-
+// Global variables
 var (
-	db        *sql.DB                    // SQLite database connection
-	jwtSecret = []byte("supersecretkey") // Ideally set via an ENV var
+	mongoClient *mongo.Client
+	db          *sql.DB                    // SQLite database connection
+	jwtSecret   = []byte("supersecretkey") // In production, set this via an environment variable.
 )
 
-// User represents a row in the "users" table.
+// User represents our user model.
 type User struct {
 	ID        int    `json:"id"`
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
 	Email     string `json:"email"`
 	Company   string `json:"company,omitempty"`
-	Password  string `json:"password"` // allow JSON input on register; cleared before returning
+	Password  string `json:"password"` // Accept JSON input; we'll clear it before responses.
 	Role      string `json:"role"`     // "user", "admin", or "superadmin"
 }
 
-// Environment represents a row in the "environments" table.
+// Environment represents a MongoDB environment.
 type Environment struct {
 	ID               int    `json:"id"`
 	Name             string `json:"name"`
@@ -47,19 +45,17 @@ type Environment struct {
 	CreatedBy        int    `json:"created_by"`
 }
 
-// -------------------------------------------------------------------
-// Initialization
-// -------------------------------------------------------------------
-
+// initSQLite opens/creates the SQLite DB at /data/sqlite/users.db,
+// creates necessary tables, and inserts a default admin user if none exist.
 func initSQLite() {
 	var err error
-	// Open or create local SQLite DB file: "users.db"
-	db, err = sql.Open("sqlite3", "./users.db")
+	// Open SQLite DB from the persistent volume.
+	db, err = sql.Open("sqlite3", "/data/sqlite/users.db")
 	if err != nil {
 		log.Fatalf("Failed to open SQLite database: %v", err)
 	}
 
-	// 1) Create the users table if it doesn't exist.
+	// Create the users table if it doesn't exist.
 	createUsersTableSQL := `
 	CREATE TABLE IF NOT EXISTS users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,11 +67,12 @@ func initSQLite() {
 		role TEXT NOT NULL
 	);
 	`
-	if _, err = db.Exec(createUsersTableSQL); err != nil {
+	_, err = db.Exec(createUsersTableSQL)
+	if err != nil {
 		log.Fatalf("Failed to create users table: %v", err)
 	}
 
-	// 2) Create the environments table if it doesn't exist.
+	// Create the environments table if it doesn't exist.
 	createEnvsTableSQL := `
 	CREATE TABLE IF NOT EXISTS environments (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,33 +81,61 @@ func initSQLite() {
 		created_by INTEGER NOT NULL
 	);
 	`
-	if _, err = db.Exec(createEnvsTableSQL); err != nil {
+	_, err = db.Exec(createEnvsTableSQL)
+	if err != nil {
 		log.Fatalf("Failed to create environments table: %v", err)
 	}
-}
 
-// -------------------------------------------------------------------
-// Main Entry Point
-// -------------------------------------------------------------------
+	// Check if any user exists.
+	var count int
+	err = db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
+	if err != nil {
+		log.Fatalf("Failed to check users table: %v", err)
+	}
+	if count == 0 {
+		// Create default admin user.
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
+		if err != nil {
+			log.Fatalf("Failed to hash default admin password: %v", err)
+		}
+		_, err = db.Exec(
+			`INSERT INTO users(first_name, last_name, email, company, password, role)
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			"Admin", "User", "admin@example.com", "", string(hashedPassword), "admin")
+		if err != nil {
+			log.Fatalf("Failed to insert default admin user: %v", err)
+		}
+		log.Println("Default admin user created: email=admin@example.com, password=admin")
+	}
+}
 
 func main() {
 	// Initialize SQLite (for user auth & environments).
 	initSQLite()
 
+	// Connect to MongoDB (the main MongoDB connection for your application).
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	var err error
+	mongoClient, err = mongo.Connect(ctx, options.Client().ApplyURI("mongodb://root:strongpassword@mongodb:27017"))
+	if err != nil {
+		log.Fatalf("Failed to connect to MongoDB: %v", err)
+	}
+
 	// Create a Gin router.
 	router := gin.Default()
 
 	// Auth endpoints.
-	router.POST("/register", registerUser)
+	// Note: The /register endpoint is removed. Users are now pre-populated.
 	router.POST("/login", loginUser)
 
 	// Environment endpoints:
-	// - Only admin/superadmin can create new environments
+	// Only admin or superadmin can create new MongoDB environments.
 	router.POST("/environments", AuthMiddleware(), AdminMiddleware(), createEnvironment)
-	// - Any authenticated user can list them
+	// Any authenticated user can list environments.
 	router.GET("/environments", AuthMiddleware(), listEnvironments)
 
-	// Database/Collections routes by environment ID
+	// Mongo queries using an environment.
 	router.GET("/environments/:id/databases", AuthMiddleware(), getDatabasesForEnv)
 	router.GET("/environments/:id/databases/:dbName/collections", AuthMiddleware(), getCollectionsForEnv)
 
@@ -118,52 +143,6 @@ func main() {
 	if err := router.Run(":8080"); err != nil {
 		log.Fatalf("Failed to run server: %v", err)
 	}
-}
-
-// -------------------------------------------------------------------
-// Auth-Related Handlers
-// -------------------------------------------------------------------
-
-// registerUser registers a new user in the local SQLite DB.
-func registerUser(c *gin.Context) {
-	var user User
-	if err := c.ShouldBindJSON(&user); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	// Validate required fields.
-	if user.FirstName == "" || user.LastName == "" || user.Email == "" || user.Password == "" || user.Role == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing required fields"})
-		return
-	}
-	// Hash the password.
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
-		return
-	}
-	user.Password = string(hashedPassword)
-
-	// Insert the new user into SQLite.
-	stmt, err := db.Prepare(`INSERT INTO users(first_name, last_name, email, company, password, role)
-	                         VALUES(?,?,?,?,?,?)`)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to prepare statement"})
-		return
-	}
-	res, err := stmt.Exec(user.FirstName, user.LastName, user.Email, user.Company, user.Password, user.Role)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	id, err := res.LastInsertId()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve last insert id"})
-		return
-	}
-	user.ID = int(id)
-	user.Password = "" // do not return the password
-	c.JSON(http.StatusOK, gin.H{"user": user})
 }
 
 // loginUser logs in a user and returns a JWT token.
@@ -177,18 +156,17 @@ func loginUser(c *gin.Context) {
 		return
 	}
 
-	// Retrieve the user from SQLite by email.
+	// Retrieve the user from SQLite.
 	var user User
 	row := db.QueryRow(`SELECT id, first_name, last_name, email, company, password, role
 	                    FROM users WHERE email = ?`, credentials.Email)
-	err := row.Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email,
-		&user.Company, &user.Password, &user.Role)
+	err := row.Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.Company, &user.Password, &user.Role)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
 
-	// Compare the provided password with the stored hash.
+	// Compare provided password with stored hash.
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(credentials.Password)); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
@@ -199,7 +177,7 @@ func loginUser(c *gin.Context) {
 		"user_id": user.ID,
 		"email":   user.Email,
 		"role":    user.Role,
-		"exp":     time.Now().Add(72 * time.Hour).Unix(), // token expires in 72 hours
+		"exp":     time.Now().Add(72 * time.Hour).Unix(), // expires in 72 hours
 	})
 	tokenString, err := token.SignedString(jwtSecret)
 	if err != nil {
@@ -213,8 +191,7 @@ func loginUser(c *gin.Context) {
 // Middleware: Auth & Role Checks
 // -------------------------------------------------------------------
 
-// AuthMiddleware extracts the JWT token from "Authorization: Bearer <token>",
-// verifies it, and loads the user into the context.
+// AuthMiddleware verifies the JWT token and loads the user into the context.
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
@@ -239,24 +216,20 @@ func AuthMiddleware() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 			return
 		}
-
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 			userID, ok := claims["user_id"].(float64)
 			if !ok {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
 				return
 			}
-			// Load user from DB
 			var user User
 			row := db.QueryRow(`SELECT id, first_name, last_name, email, company, password, role
 			                    FROM users WHERE id = ?`, int(userID))
-			err := row.Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email,
-				&user.Company, &user.Password, &user.Role)
+			err := row.Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.Company, &user.Password, &user.Role)
 			if err != nil {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
 				return
 			}
-			// Clear password before storing in context
 			user.Password = ""
 			c.Set("user", user)
 			c.Next()
@@ -267,7 +240,7 @@ func AuthMiddleware() gin.HandlerFunc {
 	}
 }
 
-// AdminMiddleware ensures the user has role "admin" or "superadmin".
+// AdminMiddleware ensures that the user has the role "admin" or "superadmin".
 func AdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userVal, exists := c.Get("user")
@@ -276,11 +249,7 @@ func AdminMiddleware() gin.HandlerFunc {
 			return
 		}
 		user, ok := userVal.(User)
-		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-			return
-		}
-		if user.Role != "admin" && user.Role != "superadmin" {
+		if !ok || (user.Role != "admin" && user.Role != "superadmin") {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Forbidden - Admins Only"})
 			return
 		}
@@ -289,10 +258,10 @@ func AdminMiddleware() gin.HandlerFunc {
 }
 
 // -------------------------------------------------------------------
-// Environment CRUD
+// Environment Endpoints
 // -------------------------------------------------------------------
 
-// createEnvironment allows admin/superadmin to register a new MongoDB environment.
+// createEnvironment allows an admin/superadmin to create a new MongoDB environment.
 func createEnvironment(c *gin.Context) {
 	var req struct {
 		Name             string `json:"name"`
@@ -307,15 +276,12 @@ func createEnvironment(c *gin.Context) {
 		return
 	}
 
-	// Current user
+	// Get the current user from context.
 	userVal, _ := c.Get("user")
 	user := userVal.(User)
 
-	// Insert into DB
-	stmt, err := db.Prepare(`
-		INSERT INTO environments (name, connection_string, created_by)
-		VALUES (?,?,?)
-	`)
+	// Insert the new environment into the DB.
+	stmt, err := db.Prepare(`INSERT INTO environments (name, connection_string, created_by) VALUES (?,?,?)`)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to prepare statement"})
 		return
@@ -340,7 +306,7 @@ func createEnvironment(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"environment": env})
 }
 
-// listEnvironments returns all registered Mongo environments.
+// listEnvironments returns all stored MongoDB environments.
 func listEnvironments(c *gin.Context) {
 	rows, err := db.Query(`SELECT id, name, connection_string, created_by FROM environments`)
 	if err != nil {
@@ -365,7 +331,7 @@ func listEnvironments(c *gin.Context) {
 // Mongo Queries by Environment
 // -------------------------------------------------------------------
 
-// getDatabasesForEnv connects to the environment's MongoDB and lists all databases.
+// getDatabasesForEnv connects to the specified environment's MongoDB and lists its databases.
 func getDatabasesForEnv(c *gin.Context) {
 	envIDStr := c.Param("id")
 	envID, err := strconv.Atoi(envIDStr)
@@ -374,27 +340,26 @@ func getDatabasesForEnv(c *gin.Context) {
 		return
 	}
 
-	// Fetch environment from DB
+	// Retrieve the environment from the DB.
 	var e Environment
-	row := db.QueryRow(`SELECT id, name, connection_string, created_by
-	                    FROM environments WHERE id = ?`, envID)
+	row := db.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	err = row.Scan(&e.ID, &e.Name, &e.ConnectionString, &e.CreatedBy)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
 
-	// Connect to the environment's MongoDB
+	// Connect to the environment's MongoDB.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	mongoClient, err := mongo.Connect(ctx, options.Client().ApplyURI(e.ConnectionString))
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(e.ConnectionString))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB"})
 		return
 	}
-	defer mongoClient.Disconnect(ctx)
+	defer client.Disconnect(ctx)
 
-	result, err := mongoClient.ListDatabases(ctx, bson.M{})
+	result, err := client.ListDatabases(ctx, bson.M{})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -402,40 +367,37 @@ func getDatabasesForEnv(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// getCollectionsForEnv lists all collections in a specific DB of the given environment.
+// getCollectionsForEnv lists all collections and their stats for a specific database
+// in the given environment.
 func getCollectionsForEnv(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
-
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
 
-	// Fetch environment
+	// Retrieve the environment.
 	var e Environment
-	row := db.QueryRow(`SELECT id, name, connection_string, created_by
-	                    FROM environments WHERE id = ?`, envID)
+	row := db.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	err = row.Scan(&e.ID, &e.Name, &e.ConnectionString, &e.CreatedBy)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
 
-	// Connect to that Mongo instance
+	// Connect to that MongoDB instance.
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	mongoClient, err := mongo.Connect(ctx, options.Client().ApplyURI(e.ConnectionString))
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(e.ConnectionString))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB"})
 		return
 	}
-	defer mongoClient.Disconnect(ctx)
+	defer client.Disconnect(ctx)
 
-	mongoDB := mongoClient.Database(dbName)
-
-	// Get collection names
+	mongoDB := client.Database(dbName)
 	collections, err := mongoDB.ListCollectionNames(ctx, bson.D{})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -443,14 +405,11 @@ func getCollectionsForEnv(c *gin.Context) {
 	}
 
 	var output []gin.H
-
-	// For each collection, gather stats
 	for _, coll := range collections {
 		stats := bson.M{}
-		if err := mongoDB.RunCommand(ctx, bson.D{{Key: "collStats", Value: coll}}).Decode(&stats); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("Failed to get stats for %s: %v", coll, err),
-			})
+		err := mongoDB.RunCommand(ctx, bson.D{{Key: "collStats", Value: coll}}).Decode(&stats)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to get stats for %s: %v", coll, err)})
 			return
 		}
 
@@ -459,7 +418,7 @@ func getCollectionsForEnv(c *gin.Context) {
 		if err == nil {
 			for indexes.Next(ctx) {
 				var idx bson.M
-				if decodeErr := indexes.Decode(&idx); decodeErr == nil {
+				if err := indexes.Decode(&idx); err == nil {
 					indexList = append(indexList, idx)
 				}
 			}

@@ -9,6 +9,9 @@ services:
       - mongodb
     environment:
       - MONGO_URI=mongodb://root:strongpassword@mongodb:27017
+    # Mount a volume for the SQLite database (it will store /data/sqlite/users.db)
+    volumes:
+      - sqlite_data:/data/sqlite
 
   mongodb:
     image: mongo:latest
@@ -35,3 +38,4 @@ services:
 
 volumes:
   mongodb_data:
+  sqlite_data:
