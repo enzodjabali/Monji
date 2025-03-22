@@ -16,8 +16,7 @@ import (
 var mongoClient *mongo.Client
 
 func main() {
-	// Set up a connection to MongoDB using the connection string "mongodb://mongo:27017"
-	// "mongo" is the hostname of the MongoDB container defined in docker-compose.
+	// Connect to MongoDB
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	var err error
@@ -26,28 +25,81 @@ func main() {
 		log.Fatalf("Failed to connect to MongoDB: %v", err)
 	}
 
-	// Create a Gin router instance.
+	// Create Gin router
 	router := gin.Default()
 
-	// Define an endpoint that returns the list of databases.
+	// Routes
 	router.GET("/databases", getDatabases)
+	router.GET("/databases/:name/collections", getCollections)
 
-	// Run the API server on port 8080.
+	// Run API
 	if err := router.Run(":8080"); err != nil {
 		log.Fatalf("Failed to run server: %v", err)
 	}
 }
 
-// getDatabases handles GET /databases and returns the list of databases along with stats.
+// GET /databases - List all databases
 func getDatabases(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// ListDatabases returns a structure with the Databases field containing details such as name, sizeOnDisk, and empty flag.
 	result, err := mongoClient.ListDatabases(ctx, bson.M{})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, result)
+}
+
+// GET /databases/:name/collections - List all collections and their stats
+func getCollections(c *gin.Context) {
+	dbName := c.Param("name")
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	db := mongoClient.Database(dbName)
+
+	// Get collection names
+	collections, err := db.ListCollectionNames(ctx, bson.D{})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	var output []gin.H
+
+	// Gather stats for each collection
+	for _, coll := range collections {
+		stats := bson.M{}
+		err := db.RunCommand(ctx, bson.D{{Key: "collStats", Value: coll}}).Decode(&stats)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get stats for " + coll + ": " + err.Error()})
+			return
+		}
+
+		indexes, err := db.Collection(coll).Indexes().List(ctx)
+		var indexList []bson.M
+		if err == nil {
+			for indexes.Next(ctx) {
+				var idx bson.M
+				if err := indexes.Decode(&idx); err == nil {
+					indexList = append(indexList, idx)
+				}
+			}
+		}
+
+		output = append(output, gin.H{
+			"name":           coll,
+			"count":          stats["count"],
+			"size":           stats["size"],
+			"storageSize":    stats["storageSize"],
+			"totalIndexSize": stats["totalIndexSize"],
+			"indexes":        indexList,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"database":    dbName,
+		"collections": output,
+	})
 }
