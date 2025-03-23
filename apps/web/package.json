@@ -1,0 +1,19 @@
+{
+    "name": "my-svelte-app",
+    "version": "0.0.1",
+    "scripts": {
+      "dev": "svelte-kit dev",
+      "build": "svelte-kit build",
+      "preview": "svelte-kit preview",
+      "check": "svelte-check --tsconfig ./tsconfig.json"
+    },
+    "devDependencies": {
+      "@sveltejs/kit": "next",
+      "@sveltejs/adapter-node": "next",
+      "svelte": "^3.59.0",
+      "typescript": "^5.8.2",
+      "vite": "^4.0.0",
+      "@tsconfig/svelte": "^5.0.4"
+    },
+    "type": "module"
+}
