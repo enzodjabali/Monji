@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"net/http"
+	"strconv"
 
 	"monji/internal/database"
 	"monji/internal/models"
@@ -80,4 +81,112 @@ func ListEnvironments(c *gin.Context) {
 		envs = append(envs, e)
 	}
 	c.JSON(http.StatusOK, gin.H{"environments": envs})
+}
+
+// GetEnvironment fetches the details of a single environment.
+func GetEnvironment(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
+		return
+	}
+
+	var env models.Environment
+	row := database.DB.QueryRow("SELECT id, name, connection_string, created_by FROM environments WHERE id = ?", id)
+	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"environment": env})
+}
+
+// UpdateEnvironment edits an existing environment configuration.
+func UpdateEnvironment(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
+		return
+	}
+
+	var req struct {
+		Name             string `json:"name"`
+		ConnectionString string `json:"connection_string"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.Name == "" && req.ConnectionString == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No update parameters provided"})
+		return
+	}
+
+	// Build dynamic update query.
+	query := "UPDATE environments SET "
+	var params []interface{}
+	if req.Name != "" {
+		query += "name = ?"
+		params = append(params, req.Name)
+	}
+	if req.ConnectionString != "" {
+		if len(params) > 0 {
+			query += ", "
+		}
+		query += "connection_string = ?"
+		params = append(params, req.ConnectionString)
+	}
+	query += " WHERE id = ?"
+	params = append(params, id)
+
+	res, err := database.DB.Exec(query, params...)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+		return
+	}
+
+	// Query the updated environment.
+	var env models.Environment
+	row := database.DB.QueryRow("SELECT id, name, connection_string, created_by FROM environments WHERE id = ?", id)
+	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"environment": env})
+}
+
+// DeleteEnvironment removes an environment configuration.
+func DeleteEnvironment(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
+		return
+	}
+
+	res, err := database.DB.Exec("DELETE FROM environments WHERE id = ?", id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Environment deleted successfully"})
 }

@@ -43,7 +43,11 @@ func main() {
 	{
 		// Environment endpoints.
 		api.GET("/environments", handlers.ListEnvironments)
+		// New endpoint: fetch environment details by id.
+		api.GET("/environments/:id", handlers.GetEnvironment)
 		api.POST("/environments", middleware.AdminMiddleware(), handlers.CreateEnvironment)
+		api.PUT("/environments/:id", middleware.AdminMiddleware(), handlers.UpdateEnvironment)
+		api.DELETE("/environments/:id", middleware.AdminMiddleware(), handlers.DeleteEnvironment)
 
 		// Mongo queries.
 		api.GET("/environments/:id/databases", handlers.GetDatabases)
