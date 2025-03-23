@@ -29,6 +29,8 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		// Mongo queries.
 		api.GET("/environments/:id/databases", handlers.GetDatabases)
 		api.POST("/environments/:id/databases", middleware.AdminMiddleware(), handlers.CreateDatabase)
+		api.PUT("/environments/:id/databases/:dbName", middleware.AdminMiddleware(), handlers.EditDatabase)
+		api.DELETE("/environments/:id/databases/:dbName", middleware.AdminMiddleware(), handlers.DeleteDatabase)
 		api.GET("/environments/:id/databases/:dbName/collections", handlers.GetCollections)
 		api.GET("/environments/:id/databases/:dbName/collections/:collName/documents", handlers.GetDocuments)
 	}
