@@ -2,13 +2,12 @@
 // for information about these interfaces
 declare global {
     namespace App {
-      // You can extend these interfaces as needed
-      // interface Error {}
-      // interface Locals {}
-      // interface PageData {}
-      // interface PageState {}
-      // interface Platform {}
+        // interface Error {}
+        // interface Locals {}
+        // interface PageData {}
+        // interface PageState {}
+        // interface Platform {}
     }
 }
-  
+
 export {};
