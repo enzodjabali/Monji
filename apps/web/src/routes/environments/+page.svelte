@@ -1,10 +1,17 @@
 <script lang="ts">
-    export let data: { environments: Array<{ id: number; name: string; connection_string: string; created_by: number }> };
-  </script>
+    export let data: {
+      environments: Array<{
+        id: number;
+        name: string;
+        connection_string: string;
+        created_by: number;
+      }>;
+    };
+</script>
   
-  <h1>Environments</h1>
+<h1>Environments</h1>
   
-  {#if data.environments && data.environments.length > 0}
+{#if data.environments && data.environments.length > 0}
     <ul>
       {#each data.environments as env}
         <li>
@@ -14,4 +21,4 @@
     </ul>
   {:else}
     <p>No environments found.</p>
-  {/if}
+{/if}
