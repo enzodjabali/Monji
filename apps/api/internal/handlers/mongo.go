@@ -150,3 +150,73 @@ func GetDocuments(c *gin.Context) {
 		"documents":  documents,
 	})
 }
+
+// CreateDatabase creates a new database in the specified MongoDB environment
+// by creating an initial collection. In MongoDB a database is created when
+// its first collection is created.
+func CreateDatabase(c *gin.Context) {
+	envIDStr := c.Param("id")
+	envID, err := strconv.Atoi(envIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
+		return
+	}
+
+	// Retrieve the environment from SQLite.
+	var env models.Environment
+	row := database.DB.QueryRow(
+		`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
+	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+		return
+	}
+
+	// Parse JSON payload.
+	var req struct {
+		DbName            string `json:"dbName"`
+		InitialCollection string `json:"initialCollection"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.DbName == "" || req.InitialCollection == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Both dbName and initialCollection are required"})
+		return
+	}
+
+	// Connect to MongoDB using the environment's connection string.
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	client, err := database.ConnectMongo(ctx, env.ConnectionString)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB"})
+		return
+	}
+	defer client.Disconnect(ctx)
+
+	// Check if the database already exists.
+	dbList, err := client.ListDatabaseNames(ctx, bson.M{})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list databases: " + err.Error()})
+		return
+	}
+	for _, dbName := range dbList {
+		if dbName == req.DbName {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Database already exists"})
+			return
+		}
+	}
+
+	// Create the new database by creating the initial collection.
+	if err := client.Database(req.DbName).CreateCollection(ctx, req.InitialCollection); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create collection: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":           "Database created successfully",
+		"database":          req.DbName,
+		"initialCollection": req.InitialCollection,
+	})
+}
