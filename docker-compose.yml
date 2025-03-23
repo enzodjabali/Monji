@@ -13,6 +13,13 @@ services:
     volumes:
       - sqlite_data:/data/sqlite
 
+  web:
+    build: ./apps/web/
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+
   mongodb:
     image: mongo:latest
     ports:
