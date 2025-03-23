@@ -83,8 +83,25 @@ func ListEnvironments(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"environments": envs})
 }
 
+// GetEnvironment fetches the details of a single environment.
+func GetEnvironment(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
+		return
+	}
+
+	var env models.Environment
+	row := database.DB.QueryRow("SELECT id, name, connection_string, created_by FROM environments WHERE id = ?", id)
+	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"environment": env})
+}
+
 // UpdateEnvironment edits an existing environment configuration.
-// It accepts a JSON payload with the fields to update.
 func UpdateEnvironment(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
