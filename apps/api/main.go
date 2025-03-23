@@ -138,6 +138,8 @@ func main() {
 	// Mongo queries using an environment.
 	router.GET("/environments/:id/databases", AuthMiddleware(), getDatabasesForEnv)
 	router.GET("/environments/:id/databases/:dbName/collections", AuthMiddleware(), getCollectionsForEnv)
+	// New endpoint: Get documents from a collection.
+	router.GET("/environments/:id/databases/:dbName/collections/:collName/documents", AuthMiddleware(), getDocumentsForCollection)
 
 	// Start the API server on port 8080.
 	if err := router.Run(":8080"); err != nil {
@@ -437,5 +439,64 @@ func getCollectionsForEnv(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"database":    dbName,
 		"collections": output,
+	})
+}
+
+// -------------------------------------------------------------------
+// New Endpoint: Fetch Documents from a Collection
+// -------------------------------------------------------------------
+
+// getDocumentsForCollection retrieves all documents from a specified collection in a given database.
+func getDocumentsForCollection(c *gin.Context) {
+	envIDStr := c.Param("id")
+	dbName := c.Param("dbName")
+	collName := c.Param("collName")
+
+	envID, err := strconv.Atoi(envIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
+		return
+	}
+
+	// Retrieve the environment from the DB.
+	var e Environment
+	row := db.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
+	err = row.Scan(&e.ID, &e.Name, &e.ConnectionString, &e.CreatedBy)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+		return
+	}
+
+	// Connect to the specified MongoDB environment.
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(e.ConnectionString))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB"})
+		return
+	}
+	defer client.Disconnect(ctx)
+
+	// Get the collection from the specified database.
+	collection := client.Database(dbName).Collection(collName)
+
+	// Retrieve all documents. (In production, consider adding pagination/limit.)
+	cursor, err := collection.Find(ctx, bson.M{})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch documents: " + err.Error()})
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var documents []bson.M
+	if err = cursor.All(ctx, &documents); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode documents: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"database":   dbName,
+		"collection": collName,
+		"documents":  documents,
 	})
 }
