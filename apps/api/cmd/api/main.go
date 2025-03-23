@@ -7,10 +7,7 @@ import (
 
 	"monji/internal/config"
 	"monji/internal/database"
-	"monji/internal/handlers"
-	"monji/internal/middleware"
-
-	"github.com/gin-gonic/gin"
+	"monji/internal/router"
 )
 
 func main() {
@@ -31,32 +28,11 @@ func main() {
 		log.Printf("Warning: Failed to connect to main MongoDB instance: %v", err)
 	}
 
-	// Create the Gin router.
-	router := gin.Default()
-
-	// Public route.
-	router.POST("/login", handlers.Login)
-
-	// Protected routes.
-	api := router.Group("/")
-	api.Use(middleware.AuthMiddleware())
-	{
-		// Environment endpoints.
-		api.GET("/environments", handlers.ListEnvironments)
-		// New endpoint: fetch environment details by id.
-		api.GET("/environments/:id", handlers.GetEnvironment)
-		api.POST("/environments", middleware.AdminMiddleware(), handlers.CreateEnvironment)
-		api.PUT("/environments/:id", middleware.AdminMiddleware(), handlers.UpdateEnvironment)
-		api.DELETE("/environments/:id", middleware.AdminMiddleware(), handlers.DeleteEnvironment)
-
-		// Mongo queries.
-		api.GET("/environments/:id/databases", handlers.GetDatabases)
-		api.GET("/environments/:id/databases/:dbName/collections", handlers.GetCollections)
-		api.GET("/environments/:id/databases/:dbName/collections/:collName/documents", handlers.GetDocuments)
-	}
+	// Set up the router.
+	r := router.SetupRouter(cfg)
 
 	// Start the server.
-	if err := router.Run(":" + cfg.Port); err != nil {
+	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatalf("Failed to run server: %v", err)
 	}
 }
