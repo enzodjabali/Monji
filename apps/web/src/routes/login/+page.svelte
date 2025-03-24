@@ -8,6 +8,12 @@ export let data: { error?: string };
     <!-- Left column: login form and social sign-in -->
     <div class="flex flex-col justify-center px-8 py-12 md:w-1/2">
         <div class="max-w-sm mx-auto w-full">
+        <!-- Monji logo -->
+        <img
+            src="https://monji-assets.fra1.cdn.digitaloceanspaces.com/images/monji-logo-black.png"
+            alt="Monji logo"
+            class="h-20 w-auto mb-6"
+        />
         <!-- Logo / heading -->
         <h1 class="text-2xl font-bold mb-2">Log in to your account</h1>
         <p class="mb-6">
