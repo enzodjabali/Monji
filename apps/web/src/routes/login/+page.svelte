@@ -1,7 +1,7 @@
 <script lang="ts">
     // This interface will be populated by server actions (e.g., for login errors)
     export let data: { error?: string };
-</script>
+    </script>
     
 <!-- Outer container: two-column layout on larger screens -->
 <div class="min-h-screen md:flex bg-white">
@@ -16,7 +16,7 @@
           />
     
           <!-- Heading -->
-          <h1 class="text-2xl font-bold mb-4">Log in to your account</h1>
+          <h1 class="text-2xl font-bold mb-2">Log in to your account</h1>
           <p class="mb-6">
             First time here?
             <a href="#" class="text-[#1B6609] hover:underline">
@@ -44,7 +44,8 @@
                 id="email"
                 name="email"
                 required
-                class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1B6609]"
+                class="w-full border border-gray-300 rounded px-3 py-2
+                       focus:outline-none focus:ring-2 focus:ring-[#1B6609]"
               />
             </div>
     
@@ -55,13 +56,15 @@
                 id="password"
                 name="password"
                 required
-                class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1B6609]"
+                class="w-full border border-gray-300 rounded px-3 py-2
+                       focus:outline-none focus:ring-2 focus:ring-[#1B6609]"
               />
             </div>
     
             <button
               type="submit"
-              class="w-full bg-[#1B6609] text-white py-2 rounded hover:bg-green-800 transition"
+              class="w-full bg-[#1B6609] text-white py-2 rounded
+                     hover:bg-green-800 transition"
             >
               Login
             </button>
@@ -69,8 +72,17 @@
         </div>
       </div>
     
-      <!-- Right column: marketing / info panel -->
-      <div class="hidden md:flex md:w-1/2 items-center justify-center p-10 bg-[#1B6609]">
+      <!-- Right column: marketing / info panel with SVG background -->
+      <div
+        class="hidden md:flex md:w-1/2 items-center justify-center p-10"
+        style="
+            background-color: #1B6609;
+            background-image: url('https://monji-assets.fra1.cdn.digitaloceanspaces.com/images/background-waves-white.svg');
+            background-repeat: no-repeat;
+            background-position: right bottom;
+            background-size: contain;
+        "
+        >
         <div class="max-w-sm text-white">
           <h2 class="text-3xl font-bold mb-4">MongoDB 8.0 is here</h2>
           <p class="mb-4">
