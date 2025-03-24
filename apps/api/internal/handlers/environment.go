@@ -26,7 +26,7 @@ func CreateEnvironment(c *gin.Context) {
 		return
 	}
 
-	// Retrieve current user from context.
+	// Get current user from context.
 	user, exists := c.Get("user")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
@@ -59,7 +59,7 @@ func CreateEnvironment(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"environment": env})
 }
 
-// ListEnvironments returns all stored MongoDB environment configurations.
+// ListEnvironments returns all environment configurations.
 func ListEnvironments(c *gin.Context) {
 	rows, err := database.DB.Query(`SELECT id, name, connection_string, created_by FROM environments`)
 	if err != nil {
@@ -83,7 +83,7 @@ func ListEnvironments(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"environments": envs})
 }
 
-// GetEnvironment fetches the details of a single environment.
+// GetEnvironment fetches details for a single environment.
 func GetEnvironment(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -101,7 +101,7 @@ func GetEnvironment(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"environment": env})
 }
 
-// UpdateEnvironment edits an existing environment configuration.
+// UpdateEnvironment updates an environment configuration.
 func UpdateEnvironment(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -123,7 +123,6 @@ func UpdateEnvironment(c *gin.Context) {
 		return
 	}
 
-	// Build dynamic update query.
 	query := "UPDATE environments SET "
 	var params []interface{}
 	if req.Name != "" {
@@ -155,7 +154,6 @@ func UpdateEnvironment(c *gin.Context) {
 		return
 	}
 
-	// Query the updated environment.
 	var env models.Environment
 	row := database.DB.QueryRow("SELECT id, name, connection_string, created_by FROM environments WHERE id = ?", id)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {

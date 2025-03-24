@@ -21,6 +21,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Missing Authorization header"})
 			return
 		}
+		// Use strings.Split instead of jwt.SplitToken
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid Authorization header format"})
@@ -45,11 +46,14 @@ func AuthMiddleware() gin.HandlerFunc {
 			}
 			var user models.User
 			row := database.DB.QueryRow(
-				`SELECT id, first_name, last_name, email, company, password, role FROM users WHERE id = ?`, int(userID))
+				`SELECT id, first_name, last_name, email, company, password, role FROM users WHERE id = ?`,
+				int(userID))
 			if err := row.Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.Company, &user.Password, &user.Role); err != nil {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
 				return
 			}
+			// Log the loaded user for debugging.
+			fmt.Printf("AuthMiddleware: loaded user %+v\n", user)
 			user.Password = ""
 			c.Set("user", user)
 			c.Next()
@@ -60,15 +64,21 @@ func AuthMiddleware() gin.HandlerFunc {
 	}
 }
 
-// AdminMiddleware ensures that the user has admin privileges.
+// AdminMiddleware ensures the user is an admin or superadmin.
 func AdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, exists := c.Get("user")
 		if !exists {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized - user not in context"})
 			return
 		}
-		usr := user.(models.User)
+		usr, ok := user.(models.User)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized - user type assertion failed"})
+			return
+		}
+		// Log the role for debugging.
+		fmt.Printf("AdminMiddleware: user role = %s\n", usr.Role)
 		if usr.Role != "admin" && usr.Role != "superadmin" {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Forbidden - Admins Only"})
 			return

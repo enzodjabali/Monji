@@ -7,7 +7,7 @@ import (
 
 	"monji/internal/config"
 	"monji/internal/database"
-	"monji/internal/router"
+	"monji/internal/routes"
 )
 
 func main() {
@@ -20,19 +20,19 @@ func main() {
 	// Initialize SQLite (for users and environments).
 	database.InitSQLite(cfg.SQLitePath)
 
-	// (Optional) Initialize a global MongoDB connection if needed.
+	// (Optional) Test MongoDB connection.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_, err = database.ConnectMongo(ctx, cfg.MongoURI)
 	if err != nil {
-		log.Printf("Warning: Failed to connect to main MongoDB instance: %v", err)
+		log.Printf("Warning: Failed to connect to MongoDB: %v", err)
 	}
 
-	// Set up the router.
-	r := router.SetupRouter(cfg)
+	// Set up all routes.
+	router := routes.SetupRoutes(cfg)
 
 	// Start the server.
-	if err := r.Run(":" + cfg.Port); err != nil {
+	if err := router.Run(":" + cfg.Port); err != nil {
 		log.Fatalf("Failed to run server: %v", err)
 	}
 }
