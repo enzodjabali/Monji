@@ -20,6 +20,7 @@ func SetupRoutes(cfg *config.Config) *gin.Engine {
 	RegisterCollectionRoutes(api)
 	RegisterDocumentRoutes(api)
 	RegisterMongoUserRoutes(api)
+	RegisterWhoAmIRoute(api)
 
 	return router
 }
