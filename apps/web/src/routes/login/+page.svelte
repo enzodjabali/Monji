@@ -16,7 +16,7 @@
           />
     
           <!-- Heading -->
-          <h1 class="text-2xl font-bold mb-2">Log in to your account</h1>
+          <h1 class="text-2xl font-bold mb-4">Log in to your account</h1>
           <p class="mb-6">
             First time here?
             <a href="#" class="text-[#1B6609] hover:underline">
