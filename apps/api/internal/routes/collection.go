@@ -7,14 +7,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// RegisterCollectionRoutes ensures both Auth and Admin for all collection endpoints.
 func RegisterCollectionRoutes(rg *gin.RouterGroup) {
 	collGroup := rg.Group("/environments/:id/databases/:dbName/collections")
 	{
+		collGroup.Use(middleware.AuthMiddleware(), middleware.AdminMiddleware())
+
 		collGroup.GET("", handlers.GetCollections)
-		// Getting detailed info requires admin privileges.
-		collGroup.GET("/:collName", middleware.AdminMiddleware(), handlers.GetCollectionDetails)
-		collGroup.POST("", middleware.AdminMiddleware(), handlers.CreateCollection)
-		collGroup.PUT("/:collName", middleware.AdminMiddleware(), handlers.EditCollection)
-		collGroup.DELETE("/:collName", middleware.AdminMiddleware(), handlers.DeleteCollection)
+		collGroup.GET("/:collName", handlers.GetCollectionDetails)
+		collGroup.POST("", handlers.CreateCollection)
+		collGroup.PUT("/:collName", handlers.EditCollection)
+		collGroup.DELETE("/:collName", handlers.DeleteCollection)
 	}
 }

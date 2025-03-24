@@ -7,12 +7,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// RegisterDatabaseRoutes ensures both Auth and Admin are required for all DB endpoints.
 func RegisterDatabaseRoutes(rg *gin.RouterGroup) {
 	dbGroup := rg.Group("/environments/:id/databases")
 	{
+		dbGroup.Use(middleware.AuthMiddleware(), middleware.AdminMiddleware())
+
 		dbGroup.GET("", handlers.GetDatabases)
-		dbGroup.POST("", middleware.AdminMiddleware(), handlers.CreateDatabase)
-		dbGroup.PUT("/:dbName", middleware.AdminMiddleware(), handlers.EditDatabase)
-		dbGroup.DELETE("/:dbName", middleware.AdminMiddleware(), handlers.DeleteDatabase)
+		dbGroup.POST("", handlers.CreateDatabase)
+		dbGroup.PUT("/:dbName", handlers.EditDatabase)
+		dbGroup.DELETE("/:dbName", handlers.DeleteDatabase)
 	}
 }
