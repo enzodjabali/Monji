@@ -14,7 +14,7 @@ func ConnectMongo(ctx context.Context, uri string) (*mongo.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Optional: ping to verify the connection.
+	// Ping to verify connection.
 	pingCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err = client.Ping(pingCtx, nil); err != nil {

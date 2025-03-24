@@ -60,7 +60,7 @@ func AuthMiddleware() gin.HandlerFunc {
 	}
 }
 
-// AdminMiddleware ensures that the user has admin privileges.
+// AdminMiddleware ensures the user is an admin or superadmin.
 func AdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, exists := c.Get("user")

@@ -48,7 +48,7 @@ func InitSQLite(path string) {
 		log.Fatalf("Failed to create environments table: %v", err)
 	}
 
-	// Insert default admin user if no users exist.
+	// Insert default admin user if none exist.
 	var count int
 	err = DB.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
 	if err != nil {
