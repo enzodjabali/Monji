@@ -33,7 +33,7 @@ func GetDatabases(c *gin.Context) {
 	defer cancel()
 	client, err := database.ConnectMongo(ctx, env.ConnectionString)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	defer client.Disconnect(ctx)
@@ -222,5 +222,53 @@ func DeleteDatabase(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message":  "Database deleted successfully",
 		"database": dbName,
+	})
+}
+
+// GetDatabaseDetails returns detailed information about a specific MongoDB database.
+// It includes database statistics and a list of collections.
+func GetDatabaseDetails(c *gin.Context) {
+	envIDStr := c.Param("id")
+	dbName := c.Param("dbName")
+	envID, err := strconv.Atoi(envIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
+		return
+	}
+	var env models.Environment
+	row := database.DB.QueryRow(
+		`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
+	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	client, err := database.ConnectMongo(ctx, env.ConnectionString)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB: " + err.Error()})
+		return
+	}
+	defer client.Disconnect(ctx)
+
+	// Retrieve detailed database statistics.
+	var stats bson.M
+	if err := client.Database(dbName).RunCommand(ctx, bson.D{{Key: "dbStats", Value: 1}}).Decode(&stats); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get database stats: " + err.Error()})
+		return
+	}
+
+	// List all collections in the database.
+	collNames, err := client.Database(dbName).ListCollectionNames(ctx, bson.D{})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list collections: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"database":    dbName,
+		"stats":       stats,
+		"collections": collNames,
 	})
 }
