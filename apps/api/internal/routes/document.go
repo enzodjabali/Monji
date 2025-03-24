@@ -13,9 +13,11 @@ func RegisterDocumentRoutes(rg *gin.RouterGroup) {
 	{
 		docGroup.Use(middleware.AuthMiddleware(), middleware.AdminMiddleware())
 
+		// Existing routes
 		docGroup.GET("", handlers.GetDocuments)
 		docGroup.POST("", handlers.CreateDocument)
 		docGroup.PUT("/:docID", handlers.UpdateDocument)
 		docGroup.DELETE("/:docID", handlers.DeleteDocument)
+		docGroup.GET("/:docID", handlers.GetDocument)
 	}
 }
