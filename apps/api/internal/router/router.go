@@ -33,6 +33,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.DELETE("/environments/:id/databases/:dbName", middleware.AdminMiddleware(), handlers.DeleteDatabase)
 		api.GET("/environments/:id/databases/:dbName/collections", handlers.GetCollections)
 		api.GET("/environments/:id/databases/:dbName/collections/:collName/documents", handlers.GetDocuments)
+
+		// Collection CRUD endpoints.
+		api.GET("/environments/:id/databases/:dbName/collections/:collName", middleware.AdminMiddleware(), handlers.GetCollectionDetails)
 		api.POST("/environments/:id/databases/:dbName/collections", middleware.AdminMiddleware(), handlers.CreateCollection)
 		api.PUT("/environments/:id/databases/:dbName/collections/:collName", middleware.AdminMiddleware(), handlers.EditCollection)
 		api.DELETE("/environments/:id/databases/:dbName/collections/:collName", middleware.AdminMiddleware(), handlers.DeleteCollection)

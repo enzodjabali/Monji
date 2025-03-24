@@ -348,6 +348,67 @@ func DeleteDatabase(c *gin.Context) {
 	})
 }
 
+// GetCollectionDetails retrieves detailed information about a single collection,
+// including statistics (via collStats) and indexes.
+func GetCollectionDetails(c *gin.Context) {
+	envIDStr := c.Param("id")
+	dbName := c.Param("dbName")
+	collName := c.Param("collName")
+
+	envID, err := strconv.Atoi(envIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
+		return
+	}
+
+	// Retrieve environment details from SQLite.
+	var env models.Environment
+	row := database.DB.QueryRow(
+		`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
+	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+		return
+	}
+
+	// Connect to the specified MongoDB environment.
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	client, err := database.ConnectMongo(ctx, env.ConnectionString)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB: " + err.Error()})
+		return
+	}
+	defer client.Disconnect(ctx)
+
+	// Run collStats command to get collection statistics.
+	var stats bson.M
+	if err := client.Database(dbName).RunCommand(ctx, bson.D{{Key: "collStats", Value: collName}}).Decode(&stats); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get collection stats: " + err.Error()})
+		return
+	}
+
+	// List all indexes for the collection.
+	cursor, err := client.Database(dbName).Collection(collName).Indexes().List(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list indexes: " + err.Error()})
+		return
+	}
+	var indexes []bson.M
+	for cursor.Next(ctx) {
+		var idx bson.M
+		if err := cursor.Decode(&idx); err == nil {
+			indexes = append(indexes, idx)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"database":   dbName,
+		"collection": collName,
+		"stats":      stats,
+		"indexes":    indexes,
+	})
+}
+
 // CreateCollection creates a new collection within the specified database.
 func CreateCollection(c *gin.Context) {
 	envIDStr := c.Param("id")
