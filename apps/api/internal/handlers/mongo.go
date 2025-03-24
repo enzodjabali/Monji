@@ -347,3 +347,176 @@ func DeleteDatabase(c *gin.Context) {
 		"database": dbName,
 	})
 }
+
+// CreateCollection creates a new collection within the specified database.
+func CreateCollection(c *gin.Context) {
+	envIDStr := c.Param("id")
+	dbName := c.Param("dbName")
+	envID, err := strconv.Atoi(envIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
+		return
+	}
+
+	// Retrieve environment details from SQLite.
+	var env models.Environment
+	row := database.DB.QueryRow(
+		`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
+	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+		return
+	}
+
+	// Parse request payload.
+	var req struct {
+		CollectionName string `json:"collectionName"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.CollectionName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "collectionName is required"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	client, err := database.ConnectMongo(ctx, env.ConnectionString)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB"})
+		return
+	}
+	defer client.Disconnect(ctx)
+
+	// Check if the collection already exists.
+	collNames, err := client.Database(dbName).ListCollectionNames(ctx, bson.D{})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list collections: " + err.Error()})
+		return
+	}
+	for _, name := range collNames {
+		if name == req.CollectionName {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Collection already exists"})
+			return
+		}
+	}
+
+	// Create the collection.
+	if err := client.Database(dbName).CreateCollection(ctx, req.CollectionName); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create collection: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":    "Collection created successfully",
+		"database":   dbName,
+		"collection": req.CollectionName,
+	})
+}
+
+// EditCollection renames an existing collection within the specified database.
+func EditCollection(c *gin.Context) {
+	envIDStr := c.Param("id")
+	dbName := c.Param("dbName")
+	oldCollName := c.Param("collName")
+	envID, err := strconv.Atoi(envIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
+		return
+	}
+
+	// Retrieve environment from SQLite.
+	var env models.Environment
+	row := database.DB.QueryRow(
+		`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
+	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+		return
+	}
+
+	// Parse the new collection name.
+	var req struct {
+		NewCollectionName string `json:"newCollectionName"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.NewCollectionName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "newCollectionName is required"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	client, err := database.ConnectMongo(ctx, env.ConnectionString)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB"})
+		return
+	}
+	defer client.Disconnect(ctx)
+
+	// Build the rename command.
+	oldNamespace := fmt.Sprintf("%s.%s", dbName, oldCollName)
+	newNamespace := fmt.Sprintf("%s.%s", dbName, req.NewCollectionName)
+	cmd := bson.D{
+		{"renameCollection", oldNamespace},
+		{"to", newNamespace},
+		{"dropTarget", false},
+	}
+
+	// Execute the command against the admin database.
+	if err := client.Database("admin").RunCommand(ctx, cmd).Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to rename collection: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "Collection renamed successfully",
+		"oldCollection": oldCollName,
+		"newCollection": req.NewCollectionName,
+	})
+}
+
+// DeleteCollection drops a collection from the specified database.
+func DeleteCollection(c *gin.Context) {
+	envIDStr := c.Param("id")
+	dbName := c.Param("dbName")
+	collName := c.Param("collName")
+	envID, err := strconv.Atoi(envIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
+		return
+	}
+
+	// Retrieve environment details.
+	var env models.Environment
+	row := database.DB.QueryRow(
+		`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
+	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	client, err := database.ConnectMongo(ctx, env.ConnectionString)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB"})
+		return
+	}
+	defer client.Disconnect(ctx)
+
+	// Drop the collection.
+	if err := client.Database(dbName).Collection(collName).Drop(ctx); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to drop collection: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":    "Collection deleted successfully",
+		"database":   dbName,
+		"collection": collName,
+	})
+}
