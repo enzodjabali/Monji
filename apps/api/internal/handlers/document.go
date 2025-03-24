@@ -19,13 +19,17 @@ func GetDocuments(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 	collName := c.Param("collName")
+
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
 	var env models.Environment
-	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
+	row := database.DB.QueryRow(
+		`SELECT id, name, connection_string, created_by
+		   FROM environments
+		  WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
@@ -33,6 +37,7 @@ func GetDocuments(c *gin.Context) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+
 	client, err := database.ConnectMongo(ctx, env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB"})
@@ -52,10 +57,67 @@ func GetDocuments(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode documents: " + err.Error()})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"database":   dbName,
 		"collection": collName,
 		"documents":  documents,
+	})
+}
+
+// GetDocument fetches a single document from a collection by its _id (hex or string).
+func GetDocument(c *gin.Context) {
+	envIDStr := c.Param("id")
+	dbName := c.Param("dbName")
+	collName := c.Param("collName")
+	docIDStr := c.Param("docID")
+
+	envID, err := strconv.Atoi(envIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
+		return
+	}
+	var env models.Environment
+	row := database.DB.QueryRow(
+		`SELECT id, name, connection_string, created_by
+		   FROM environments
+		  WHERE id = ?`, envID)
+	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+		return
+	}
+
+	// Try converting docIDStr to an ObjectID. If it fails, treat it as a string _id.
+	var filter bson.M
+	objID, err := primitive.ObjectIDFromHex(docIDStr)
+	if err != nil {
+		// Not a valid hex => treat as string
+		filter = bson.M{"_id": docIDStr}
+	} else {
+		// Valid hex => treat as ObjectID
+		filter = bson.M{"_id": objID}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	client, err := database.ConnectMongo(ctx, env.ConnectionString)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB"})
+		return
+	}
+	defer client.Disconnect(ctx)
+
+	var result bson.M
+	if err := client.Database(dbName).Collection(collName).FindOne(ctx, filter).Decode(&result); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Document not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"database":   dbName,
+		"collection": collName,
+		"document":   result,
 	})
 }
 
@@ -64,13 +126,17 @@ func CreateDocument(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 	collName := c.Param("collName")
+
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
 	var env models.Environment
-	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
+	row := database.DB.QueryRow(
+		`SELECT id, name, connection_string, created_by
+		   FROM environments
+		  WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
@@ -84,6 +150,7 @@ func CreateDocument(c *gin.Context) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+
 	client, err := database.ConnectMongo(ctx, env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB"})
@@ -96,34 +163,42 @@ func CreateDocument(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert document: " + err.Error()})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"message":    "Document created successfully",
 		"insertedId": res.InsertedID,
 	})
 }
 
-// UpdateDocument updates a document by its ObjectID.
+// UpdateDocument updates a document by its _id (hex or string).
 func UpdateDocument(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 	collName := c.Param("collName")
 	docIDStr := c.Param("docID")
+
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
 	var env models.Environment
-	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
+	row := database.DB.QueryRow(
+		`SELECT id, name, connection_string, created_by
+		   FROM environments
+		  WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
 
-	docID, err := primitive.ObjectIDFromHex(docIDStr)
+	// Attempt to parse docIDStr as ObjectID; fallback to string
+	var filter bson.M
+	objID, err := primitive.ObjectIDFromHex(docIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid document ID"})
-		return
+		filter = bson.M{"_id": docIDStr}
+	} else {
+		filter = bson.M{"_id": objID}
 	}
 
 	var updateData bson.M
@@ -134,6 +209,7 @@ func UpdateDocument(c *gin.Context) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+
 	client, err := database.ConnectMongo(ctx, env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB"})
@@ -141,15 +217,14 @@ func UpdateDocument(c *gin.Context) {
 	}
 	defer client.Disconnect(ctx)
 
-	res, err := client.Database(dbName).Collection(collName).UpdateOne(
-		ctx,
-		bson.M{"_id": docID},
-		bson.M{"$set": updateData},
-	)
+	res, err := client.Database(dbName).
+		Collection(collName).
+		UpdateOne(ctx, filter, bson.M{"$set": updateData})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update document: " + err.Error()})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"message":       "Document updated successfully",
 		"matchedCount":  res.MatchedCount,
@@ -157,32 +232,40 @@ func UpdateDocument(c *gin.Context) {
 	})
 }
 
-// DeleteDocument deletes a document by its ObjectID.
+// DeleteDocument deletes a document by its _id (hex or string).
 func DeleteDocument(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 	collName := c.Param("collName")
 	docIDStr := c.Param("docID")
+
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
 	var env models.Environment
-	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
+	row := database.DB.QueryRow(
+		`SELECT id, name, connection_string, created_by
+		   FROM environments
+		  WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
 
-	docID, err := primitive.ObjectIDFromHex(docIDStr)
+	// Attempt to parse docIDStr as ObjectID; fallback to string
+	var filter bson.M
+	objID, err := primitive.ObjectIDFromHex(docIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid document ID"})
-		return
+		filter = bson.M{"_id": docIDStr}
+	} else {
+		filter = bson.M{"_id": objID}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+
 	client, err := database.ConnectMongo(ctx, env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB"})
@@ -190,11 +273,12 @@ func DeleteDocument(c *gin.Context) {
 	}
 	defer client.Disconnect(ctx)
 
-	res, err := client.Database(dbName).Collection(collName).DeleteOne(ctx, bson.M{"_id": docID})
+	res, err := client.Database(dbName).Collection(collName).DeleteOne(ctx, filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete document: " + err.Error()})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"message":      "Document deleted successfully",
 		"deletedCount": res.DeletedCount,
