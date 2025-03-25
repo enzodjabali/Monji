@@ -1,6 +1,7 @@
 // apps/web/src/routes/environments/+page.server.ts
-import type { PageServerLoad } from './$types';
-import { redirect } from '@sveltejs/kit';
+
+import type { PageServerLoad, Actions } from './$types';
+import { redirect, fail } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async ({ cookies, fetch }) => {
   const token = cookies.get('token');
@@ -12,7 +13,7 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
   const userRes = await fetch('http://api:8080/whoami', {
     method: 'GET',
     headers: {
-      'Authorization': `Bearer ${token}`
+      Authorization: `Bearer ${token}`
     }
   });
   if (!userRes.ok) {
@@ -25,7 +26,7 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
+      Authorization: `Bearer ${token}`
     }
   });
   if (!envRes.ok) {
@@ -35,7 +36,113 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 
   return {
     user: userData.user,
-    // If envData.environments is null, default to an empty array.
     environments: envData.environments || []
   };
+};
+
+export const actions: Actions = {
+  // Create a new environment
+  createEnv: async ({ request, cookies, fetch }) => {
+    const token = cookies.get('token');
+    if (!token) {
+      throw redirect(303, '/login');
+    }
+
+    const formData = await request.formData();
+    const name = formData.get('name');
+    const connection_string = formData.get('connection_string');
+
+    if (typeof name !== 'string' || typeof connection_string !== 'string') {
+      return fail(400, { error: 'Invalid form data' });
+    }
+
+    // Call API: POST /environments
+    const res = await fetch('http://api:8080/environments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        name,
+        connection_string
+      })
+    });
+
+    if (!res.ok) {
+      return fail(400, { error: 'Failed to create environment' });
+    }
+
+    // If successful, reload the /environments page
+    throw redirect(303, '/environments');
+  },
+
+  // Update an existing environment
+  updateEnv: async ({ request, cookies, fetch }) => {
+    const token = cookies.get('token');
+    if (!token) {
+      throw redirect(303, '/login');
+    }
+
+    const formData = await request.formData();
+    const envId = formData.get('id');
+    const name = formData.get('name');
+    const connection_string = formData.get('connection_string');
+
+    if (
+      typeof envId !== 'string' ||
+      typeof name !== 'string' ||
+      typeof connection_string !== 'string'
+    ) {
+      return fail(400, { error: 'Invalid form data' });
+    }
+
+    // Call API: PUT /environments/:id
+    const res = await fetch(`http://api:8080/environments/${envId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        name,
+        connection_string
+      })
+    });
+
+    if (!res.ok) {
+      return fail(400, { error: 'Failed to update environment' });
+    }
+
+    throw redirect(303, '/environments');
+  },
+
+  // Delete an environment
+  deleteEnv: async ({ request, cookies, fetch }) => {
+    const token = cookies.get('token');
+    if (!token) {
+      throw redirect(303, '/login');
+    }
+
+    const formData = await request.formData();
+    const envId = formData.get('id');
+
+    if (typeof envId !== 'string') {
+      return fail(400, { error: 'Invalid environment ID' });
+    }
+
+    // Call API: DELETE /environments/:id
+    const res = await fetch(`http://api:8080/environments/${envId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    if (!res.ok) {
+      return fail(400, { error: 'Failed to delete environment' });
+    }
+
+    throw redirect(303, '/environments');
+  }
 };
