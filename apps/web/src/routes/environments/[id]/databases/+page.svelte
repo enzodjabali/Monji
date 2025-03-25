@@ -3,6 +3,7 @@
   import Navbar from '$lib/components/Navbar.svelte';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
   import { fade, scale } from 'svelte/transition';
+  import { goto } from '$app/navigation';
 
   export let data: {
     user: {
@@ -96,10 +97,14 @@
     if (!manageDropdownOpen) return;
     const container = document.getElementById(`db-manage-dropdown-${manageDropdownOpen}`);
     if (!container) return;
-
     if (!container.contains(e.target as Node)) {
       manageDropdownOpen = null;
     }
+  }
+
+  // Navigate to the collections page for a given database name
+  function goToCollections(dbName: string) {
+    goto(`/environments/${data.currentEnvironmentId}/databases/${dbName}/collections`);
   }
 </script>
 
@@ -118,7 +123,6 @@
 
 <div class="bg-gray-100 min-h-screen p-8">
   <div class="max-w-7xl mx-auto grid gap-6 md:grid-cols-[2fr_1fr]">
-
     <!-- LEFT COLUMN: Databases box -->
     <div class="bg-white rounded-lg shadow p-6 space-y-4">
       <!-- Heading + create button -->
@@ -140,27 +144,25 @@
       {#if data.databases?.length > 0}
         <div class="grid gap-4">
           {#each data.databases as db}
-            <div class="border border-gray-200 rounded p-4 hover:shadow transition relative">
+            <!-- Entire card clickable -->
+            <div
+              class="border border-gray-200 rounded p-4 hover:shadow transition relative cursor-pointer"
+              on:click={() => goToCollections(db.Name)}
+            >
               <!-- Top row: Name + Manage button -->
               <div class="flex items-center justify-between mb-1">
                 <h3 class="font-semibold text-lg text-gray-800">
-                  <!-- Link to the collections for this DB -->
-                  <a
-                    href={`/environments/${data.currentEnvironmentId}/databases/${db.Name}/collections`}
-                    class="hover:underline"
-                  >
-                    {db.Name}
-                  </a>
+                  {db.Name}
                 </h3>
-                <!-- Manage button -->
+                <!-- Manage button (clicks here do not propagate) -->
                 <div
                   class="relative"
                   id={"db-manage-dropdown-" + db.Name}
+                  on:click|stopPropagation
                 >
                   <button
                     on:click={() => toggleManageDropdown(db.Name)}
-                    class="text-sm px-3 py-1 bg-[#1B6609] text-white rounded
-                           hover:bg-[#1B6609]/90 transition"
+                    class="text-sm px-3 py-1 bg-[#1B6609] text-white rounded hover:bg-[#1B6609]/90 transition"
                   >
                     Manage
                   </button>
@@ -192,7 +194,7 @@
                 </div>
               </div>
 
-              <!-- Some DB stats -->
+              <!-- Database stats -->
               <p class="text-sm text-gray-600">
                 Size on Disk: {db.SizeOnDisk} bytes
               </p>
@@ -207,7 +209,7 @@
       {/if}
     </div>
 
-    <!-- RIGHT COLUMN: "Toolbar" or other info -->
+    <!-- RIGHT COLUMN: Toolbar -->
     <div class="bg-white rounded-lg shadow p-6 space-y-6">
       <h2 class="text-2xl font-bold text-gray-800">Toolbar</h2>
       <div>
@@ -252,7 +254,6 @@
         </ul>
       </div>
     </div>
-
   </div>
 </div>
 
@@ -269,9 +270,9 @@
       on:click|stopPropagation
     >
       <h2 class="text-xl font-bold mb-4">Create a database</h2>
-      <!-- Action form => ?/createDb -->
+      <!-- Action form for creating a DB -->
       <form method="post" action="?/createDb" class="space-y-4">
-        <!-- We won't ask for initialCollection; we pass "delete_me" behind the scenes -->
+        <!-- Hidden initialCollection field -->
         <input type="hidden" name="initialCollection" value="delete_me" />
 
         <div>
@@ -283,8 +284,7 @@
             bind:value={newDbName}
             placeholder="e.g. myNewDatabase"
             required
-            class="w-full border border-gray-300 rounded px-3 py-2
-                   focus:outline-none focus:ring-2 focus:ring-blue-600"
+            class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600"
           />
         </div>
 
@@ -321,9 +321,9 @@
       on:click|stopPropagation
     >
       <h2 class="text-xl font-bold mb-4">Rename the database</h2>
-      <!-- Action form => ?/updateDb -->
+      <!-- Action form for renaming -->
       <form method="post" action="?/updateDb" class="space-y-4">
-        <!-- Hidden field for the old DB name -->
+        <!-- Hidden field for the current name -->
         <input type="hidden" name="oldDbName" value={oldDbName} />
 
         <div>
@@ -335,8 +335,7 @@
             bind:value={renameDbNewName}
             placeholder="Enter new database name"
             required
-            class="w-full border border-gray-300 rounded px-3 py-2
-                   focus:outline-none focus:ring-2 focus:ring-blue-600"
+            class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600"
           />
         </div>
 
@@ -377,9 +376,9 @@
         To confirm, type the database name: <strong>"{deleteDbName}"</strong> below.
       </p>
 
-      <!-- Action form => ?/deleteDb -->
+      <!-- Action form for deleting -->
       <form method="post" action="?/deleteDb" class="space-y-4">
-        <!-- Hidden field for the DB name to delete -->
+        <!-- Hidden field for the database name -->
         <input type="hidden" name="dbName" value={deleteDbName} />
 
         <div>
@@ -391,8 +390,7 @@
             type="text"
             bind:value={typedDbName}
             placeholder="{deleteDbName}"
-            class="w-full border border-gray-300 rounded px-3 py-2
-                   focus:outline-none focus:ring-2 focus:ring-blue-600"
+            class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600"
           />
         </div>
 
