@@ -1,5 +1,6 @@
 <script lang="ts">
   import Navbar from '$lib/components/Navbar.svelte';
+  import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 
   export let data: {
     user: {
@@ -25,10 +26,11 @@
   };
 </script>
 
-<!-- Reuse the same Navbar -->
 <Navbar user={data.user} environments={data.environments} />
 
-<!-- Page Background & Layout -->
+<!-- BREADCRUMB: pass environmentId so it shows "Environments / Databases" -->
+<Breadcrumb environmentId={data.currentEnvironmentId} />
+
 <div class="bg-gray-100 min-h-screen p-8">
   <div class="max-w-7xl mx-auto">
     <div class="grid gap-6 md:grid-cols-[2fr_1fr]">
@@ -37,6 +39,7 @@
       <div class="bg-white rounded-lg shadow p-6 space-y-4">
         <h2 class="text-2xl font-bold text-gray-800">Databases</h2>
         <p class="text-gray-700 mb-4">Total Size: {data.totalSize} bytes</p>
+        
         {#if data.databases && data.databases.length > 0}
           <div class="space-y-4">
             {#each data.databases as db}
