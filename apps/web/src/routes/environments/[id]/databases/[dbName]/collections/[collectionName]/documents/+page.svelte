@@ -1,4 +1,3 @@
-<!-- apps/web/src/routes/environments/[id]/databases/[dbName]/collections/[collectionName]/documents/+page.svelte -->
 <script lang="ts">
     import Navbar from '$lib/components/Navbar.svelte';
   
@@ -24,96 +23,95 @@
       currentCollection: string;
     };
   
-    /** Helper to pretty-print a document as JSON. */
-    function prettyPrint(doc: any) {
-      return JSON.stringify(doc, null, 2);
+    /**
+     * Gather all unique top-level fields from the documents
+     * so we can create table columns dynamically.
+     */
+    let allFields = new Set<string>();
+    for (const doc of data.documents) {
+      for (const key of Object.keys(doc)) {
+        allFields.add(key);
+      }
+    }
+    // Convert the set to an array to iterate in the template
+    let fieldNames = Array.from(allFields);
+  
+    /**
+     * Return a short string for the given value.
+     * If it's an object or array, show JSON.
+     */
+    function previewValue(value: any) {
+      if (typeof value === 'object' && value !== null) {
+        return JSON.stringify(value);
+      }
+      return String(value);
     }
   </script>
   
-  <!-- NAVBAR (with user & environments) -->
+  <!-- NAVBAR (no "toolbar" on the right this time) -->
   <Navbar user={data.user} environments={data.environments} />
   
-  <!-- PAGE LAYOUT -->
+  <!-- MAIN CONTENT -->
   <div class="bg-gray-100 min-h-screen p-8">
-    <div class="max-w-7xl mx-auto">
-      <div class="grid gap-6 md:grid-cols-[2fr_1fr]">
-        
-        <!-- LEFT BUBBLE: DOCUMENTS LIST -->
-        <div class="bg-white rounded-lg shadow p-6 space-y-4">
-          <h2 class="text-2xl font-bold text-gray-800">
-            Documents in {data.collection} collection (DB: {data.database})
-          </h2>
-          
-          {#if data.documents.length > 0}
-            {#each data.documents as doc, i}
-              <div class="border border-gray-200 rounded p-4 mb-4">
-                <!-- Document Title -->
-                <div class="text-gray-800 font-semibold mb-2">
-                  Document {i + 1}
-                </div>
-                
-                <!-- Example: show _id if present -->
-                {#if doc._id}
-                  <p class="text-sm text-gray-600 mb-2">
-                    <span class="font-semibold">_id:</span> {doc._id}
-                  </p>
-                {/if}
+    <div class="max-w-7xl mx-auto bg-white rounded-lg shadow p-6 space-y-4">
+      <h2 class="text-2xl font-bold text-gray-800">
+        Viewing Collection: {data.collection}
+      </h2>
   
-                <!-- Two-column layout for top-level fields + full JSON -->
-                <div class="flex flex-col md:flex-row gap-4">
-                  <!-- Left: Key-Value fields (excluding _id) -->
-                  <div class="md:w-1/2 space-y-1">
-                    {#each Object.keys(doc).filter(k => k !== '_id') as key}
-                      <p class="text-sm text-gray-600">
-                        <span class="font-semibold">{key}:</span> {JSON.stringify(doc[key])}
-                      </p>
-                    {/each}
-                  </div>
-  
-                  <!-- Right: Pretty-printed JSON -->
-                  <div class="md:w-1/2 bg-gray-50 border border-gray-200 rounded p-2 overflow-auto">
-                    <pre class="text-sm text-gray-700">
-                      {prettyPrint(doc)}
-                    </pre>
-                  </div>
-                </div>
-              </div>
-            {/each}
-          {:else}
-            <p class="text-gray-600">No documents found in this collection.</p>
-          {/if}
-        </div>
-        
-        <!-- RIGHT BUBBLE: TOOLBAR / LINKS -->
-        <div class="bg-white rounded-lg shadow p-6 space-y-6">
-          <h2 class="text-2xl font-bold text-gray-800">Toolbar</h2>
-          <div>
-            <h3 class="text-lg font-semibold text-gray-800 mb-2">Recommended Resources</h3>
-            <ul class="list-disc list-inside space-y-1">
-              <li>
-                <a href="https://docs.mongodb.com" target="_blank" class="text-[#1B6609] hover:underline">
-                  Documentation
-                </a>
-              </li>
-              <li>
-                <a href="https://university.mongodb.com" target="_blank" class="text-[#1B6609] hover:underline">
-                  University
-                </a>
-              </li>
-              <li>
-                <a href="https://community.mongodb.com" target="_blank" class="text-[#1B6609] hover:underline">
-                  Forums
-                </a>
-              </li>
-              <li>
-                <a href="https://support.mongodb.com" target="_blank" class="text-[#1B6609] hover:underline">
-                  Support
-                </a>
-              </li>
-            </ul>
-          </div>
-        </div>
-  
+      <!-- Example top buttons (like Mongo Express) -->
+      <div class="flex items-center space-x-2">
+        <button
+          class="bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-500 transition"
+        >
+          + New Document
+        </button>
+        <button
+          class="bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-500 transition"
+        >
+          + New Index
+        </button>
       </div>
+  
+      <!-- Possibly more advanced options: Simple vs. Advanced search, etc. -->
+  
+      {#if data.documents.length > 0}
+        <!-- TABLE LAYOUT: one column per top-level field -->
+        <div class="overflow-auto">
+          <table class="min-w-full mt-4 border-collapse">
+            <thead>
+              <tr class="bg-gray-50 border-b">
+                {#each fieldNames as field}
+                  <th
+                    class="py-2 px-3 text-left font-semibold text-gray-700 border-r last:border-r-0"
+                  >
+                    {field}
+                  </th>
+                {/each}
+              </tr>
+            </thead>
+            <tbody>
+              {#each data.documents as doc}
+                <tr class="border-b hover:bg-gray-50">
+                  {#each fieldNames as field}
+                    <td
+                      class="py-2 px-3 border-r last:border-r-0 align-top text-sm text-gray-700"
+                    >
+                      {#if doc[field] !== undefined}
+                        {previewValue(doc[field])}
+                      {:else}
+                        <span class="text-gray-400">--</span>
+                      {/if}
+                    </td>
+                  {/each}
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {:else}
+        <p class="text-gray-600">
+          No documents found in this collection.
+        </p>
+      {/if}
     </div>
   </div>

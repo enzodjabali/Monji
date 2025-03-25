@@ -1,4 +1,3 @@
-// apps/web/src/routes/environments/[id]/databases/[dbName]/collections/[collectionName]/documents/+page.server.ts
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 
@@ -17,7 +16,7 @@ export const load: PageServerLoad = async ({ params, cookies, fetch }) => {
   }
   const userData = await userRes.json();
 
-  // 2) Fetch environments for the navbar
+  // 2) Fetch environments (for Navbar)
   const envRes = await fetch('http://api:8080/environments', {
     headers: { Authorization: `Bearer ${token}` }
   });
@@ -26,7 +25,7 @@ export const load: PageServerLoad = async ({ params, cookies, fetch }) => {
   }
   const envData = await envRes.json();
 
-  // 3) Fetch documents for this collection
+  // 3) Fetch documents for the specified collection
   const { id, dbName, collectionName } = params;
   const docsRes = await fetch(
     `http://api:8080/environments/${id}/databases/${dbName}/collections/${collectionName}/documents`,
@@ -35,15 +34,15 @@ export const load: PageServerLoad = async ({ params, cookies, fetch }) => {
     }
   );
   if (!docsRes.ok) {
-    // If API call fails, redirect back to the database page
-    throw redirect(303, `/environments/${id}/databases/${dbName}`);
+    // If call fails, redirect back to the collections page
+    throw redirect(303, `/environments/${id}/databases/${dbName}/collections`);
   }
   const docsData = await docsRes.json();
   // Example shape:
   // {
-  //   "collection": "delete_me",
-  //   "database": "ilovemongodb",
-  //   "documents": [ {...}, {...} ]
+  //   "collection": "system.users",
+  //   "database": "admin",
+  //   "documents": [ { "_id": "...", ... }, ... ]
   // }
 
   return {
