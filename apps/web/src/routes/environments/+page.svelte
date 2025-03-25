@@ -20,59 +20,104 @@
     }[];
   };
 
-  // Modals
+  /* -----------------------
+   * Modal & Dropdown State
+   * ----------------------- */
   let showCreateModal = false;
   let showEditModal = false;
   let showDeleteModal = false;
 
-  // For "edit" modal
+  // For the environment "Manage" dropdown, we track which env ID is open, or null if none.
+  let manageDropdownOpen: number | null = null;
+
+  // Data for editing
   let editEnvId: number | null = null;
   let editName = '';
   let editConnection = '';
 
-  // For "delete" modal
+  // Data for deleting
   let deleteEnvId: number | null = null;
   let deleteEnvName = '';
+  // The typed name to confirm deletion
+  let deleteInputName = '';
 
-  // For "create" modal
+  // Data for creating
   let newName = '';
   let newConnection = '';
 
+  /* -----------------------
+   * Functions
+   * ----------------------- */
+
+  // Open create modal
   function openCreateModal() {
     newName = '';
     newConnection = '';
     showCreateModal = true;
   }
 
+  // Toggle the "Manage" dropdown for a given environment
+  function toggleManageDropdown(envId: number) {
+    manageDropdownOpen = manageDropdownOpen === envId ? null : envId;
+  }
+
+  // Close the "Manage" dropdown if open
+  function closeManageDropdown() {
+    manageDropdownOpen = null;
+  }
+
+  // Open Edit modal (and close Manage dropdown)
   function openEditModal(envId: number, name: string, connection: string) {
     editEnvId = envId;
     editName = name;
     editConnection = connection;
+    closeManageDropdown(); // optional
     showEditModal = true;
   }
 
+  // Open Delete modal (and close Manage dropdown)
   function openDeleteModal(envId: number, name: string) {
     deleteEnvId = envId;
     deleteEnvName = name;
+    deleteInputName = '';
+    closeManageDropdown(); // optional
     showDeleteModal = true;
   }
 
+  // Close all modals
   function closeModals() {
     showCreateModal = false;
     showEditModal = false;
     showDeleteModal = false;
   }
 
-  // Close modal if user clicks on the overlay (but not on modal content)
+  // If user clicks outside the modal content on the overlay, close the modal
   function handleOverlayClick(e: MouseEvent) {
     if (e.target === e.currentTarget) {
       closeModals();
     }
   }
+
+  // If user clicks anywhere in window, and a manage dropdown is open,
+  // close it unless the click is inside the dropdown.
+  function handleWindowClick(e: MouseEvent) {
+    if (manageDropdownOpen === null) return;
+
+    // Use an ID-based approach to find the container for that env
+    const container = document.getElementById(`env-manage-dropdown-${manageDropdownOpen}`);
+    if (!container) return;
+
+    if (!container.contains(e.target as Node)) {
+      manageDropdownOpen = null;
+    }
+  }
 </script>
 
+<!-- Close the manage dropdown if user clicks outside it -->
+<svelte:window on:click={handleWindowClick} />
+
 <Navbar user={data.user} environments={data.environments} />
-<!-- No environmentId in breadcrumb => only shows "Environments" -->
+<!-- No environmentId => only "Environments" in breadcrumb -->
 <Breadcrumb />
 
 <div class="bg-gray-100 min-h-screen p-8">
@@ -88,38 +133,67 @@
     </div>
 
     <div class="grid gap-6 md:grid-cols-[2fr_1fr]">
-      <!-- Left: Environments List -->
+      <!-- LEFT COLUMN: ENVIRONMENTS LIST -->
       <div class="bg-white rounded-lg shadow p-6 space-y-4">
         {#if data.environments?.length > 0}
           <div class="grid gap-4">
             {#each data.environments as env}
+              <!-- Single environment card -->
               <div class="border border-gray-200 rounded-lg p-4 hover:shadow transition">
                 <div class="flex items-center justify-between mb-1">
-                  <h3 class="text-lg font-semibold text-gray-800">{env.name}</h3>
-                  <a
-                    href={`/environments/${env.id}/databases`}
-                    class="text-[#1B6609] text-sm hover:underline"
-                  >
-                    Manage
-                  </a>
+                  <!-- The environment name links to the Databases page -->
+                  <h3 class="text-lg font-semibold text-gray-800">
+                    <a
+                      href={`/environments/${env.id}/databases`}
+                      class="hover:underline"
+                    >
+                      {env.name}
+                    </a>
+                  </h3>
+
+                  <!-- Manage button that toggles a dropdown for Edit/Delete -->
+                  <div class="relative" id={"env-manage-dropdown-" + env.id}>
+                    <button
+                      on:click={() => toggleManageDropdown(env.id)}
+                      class="text-sm px-3 py-1 bg-gray-100 border border-gray-300 rounded
+                             hover:bg-gray-200 transition"
+                    >
+                      Manage
+                    </button>
+                    {#if manageDropdownOpen === env.id}
+                      <div
+                        class="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded shadow z-10"
+                        transition:scale
+                      >
+                        <ul class="py-1">
+                          <li>
+                            <button
+                              class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm"
+                              on:click={() =>
+                                openEditModal(env.id, env.name, env.connection_string)
+                              }
+                            >
+                              Edit
+                            </button>
+                          </li>
+                          <li>
+                            <button
+                              class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm text-red-600"
+                              on:click={() => openDeleteModal(env.id, env.name)}
+                            >
+                              Delete
+                            </button>
+                          </li>
+                        </ul>
+                      </div>
+                    {/if}
+                  </div>
                 </div>
+
+                <!-- Connection string info -->
                 <p class="text-sm text-gray-500">
                   <span class="font-semibold">Connection:</span> {env.connection_string}
                 </p>
-                <div class="mt-3 flex space-x-3">
-                  <button
-                    on:click={() => openEditModal(env.id, env.name, env.connection_string)}
-                    class="text-sm px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-500"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    on:click={() => openDeleteModal(env.id, env.name)}
-                    class="text-sm px-3 py-1 bg-red-600 text-white rounded hover:bg-red-500"
-                  >
-                    Delete
-                  </button>
-                </div>
               </div>
             {/each}
           </div>
@@ -128,7 +202,7 @@
         {/if}
       </div>
 
-      <!-- Right: Toolbar/Links -->
+      <!-- RIGHT COLUMN: TOOLBAR -->
       <div class="bg-white rounded-lg shadow p-6 space-y-6">
         <h2 class="text-2xl font-bold text-gray-800">Toolbar</h2>
         <div>
@@ -253,6 +327,7 @@
     >
       <h2 class="text-xl font-bold mb-4">Edit Environment</h2>
       <form method="post" action="?/updateEnv" class="space-y-4">
+        <!-- Hidden ID -->
         <input type="hidden" name="id" value={editEnvId} />
 
         <div>
@@ -315,11 +390,27 @@
     >
       <h2 class="text-xl font-bold mb-4 text-red-600">Delete Environment</h2>
       <p class="mb-4">
-        Are you sure you want to delete "<strong>{deleteEnvName}</strong>"?
-        This action cannot be undone.
+        To confirm, type the environment name:
+        <strong>"{deleteEnvName}"</strong> below.
       </p>
       <form method="post" action="?/deleteEnv" class="space-y-4">
+        <!-- Hidden ID -->
         <input type="hidden" name="id" value={deleteEnvId} />
+
+        <!-- Confirm name input -->
+        <div>
+          <label class="block font-semibold mb-1" for="deleteInputName">
+            Environment name:
+          </label>
+          <input
+            id="deleteInputName"
+            type="text"
+            bind:value={deleteInputName}
+            class="w-full border border-gray-300 rounded px-3 py-2
+                   focus:outline-none focus:ring-2 focus:ring-blue-600"
+          />
+        </div>
+
         <div class="flex justify-end space-x-2">
           <button
             type="button"
@@ -331,6 +422,7 @@
           <button
             type="submit"
             class="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-500"
+            disabled={deleteInputName !== deleteEnvName}
           >
             Delete
           </button>
