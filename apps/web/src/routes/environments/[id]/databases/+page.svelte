@@ -1,7 +1,7 @@
 <script lang="ts">
   import Navbar from '$lib/components/Navbar.svelte';
 
-  // The load function returns user info and environments.
+  // Data returned from the load function
   export let data: {
     user: {
       id: number;
@@ -16,44 +16,49 @@
       connection_string: string;
       created_by: number;
     }[];
+    databases: {
+      Name: string;
+      SizeOnDisk: number;
+      Empty: boolean;
+    }[];
+    totalSize: number;
+    currentEnvironmentId: string;
   };
 </script>
 
-<!-- Navbar with user and environments -->
+<!-- Reuse the same Navbar (with user and environments) -->
 <Navbar user={data.user} environments={data.environments} />
 
-<!-- Page Background -->
+<!-- Page background and layout -->
 <div class="bg-gray-100 min-h-screen p-8">
   <div class="max-w-7xl mx-auto">
+    <!-- Two-column grid: left = 2/3, right = 1/3 -->
     <div class="grid gap-6 md:grid-cols-[2fr_1fr]">
       
-      <!-- LEFT BUBBLE: ENVIRONMENTS LIST -->
+      <!-- LEFT BUBBLE: Databases List -->
       <div class="bg-white rounded-lg shadow p-6 space-y-4">
-        <h2 class="text-2xl font-bold text-gray-800">Environments</h2>
-        
-        {#if data.environments && data.environments.length > 0}
-          <div class="grid gap-4">
-            {#each data.environments as env}
-              <a
-                href={`/environments/${env.id}/databases`}
-                class="block bg-white border border-gray-200 rounded-lg p-4 hover:shadow transition"
-              >
-                <div class="flex items-center justify-between mb-1">
-                  <h3 class="text-lg font-semibold text-gray-800">{env.name}</h3>
-                  <span class="text-[#1B6609] text-sm hover:underline">Manage</span>
-                </div>
-                <p class="text-sm text-gray-500">
-                  <span class="font-semibold">Connection:</span> {env.connection_string}
+        <h2 class="text-2xl font-bold text-gray-800">Databases</h2>
+        <p class="text-gray-700 mb-4">Total Size: {data.totalSize} bytes</p>
+        {#if data.databases.length > 0}
+          <div class="space-y-4">
+            {#each data.databases as db}
+              <div class="border border-gray-200 rounded p-4">
+                <h3 class="font-semibold text-lg text-gray-800">{db.Name}</h3>
+                <p class="text-sm text-gray-600">
+                  Size on Disk: {db.SizeOnDisk} bytes
                 </p>
-              </a>
+                <p class="text-sm text-gray-600">
+                  Empty: {db.Empty ? 'Yes' : 'No'}
+                </p>
+              </div>
             {/each}
           </div>
         {:else}
-          <p class="text-gray-600">No environments available.</p>
+          <p class="text-gray-600">No databases found.</p>
         {/if}
       </div>
-      
-      <!-- RIGHT BUBBLE: TOOLBAR / LINKS -->
+
+      <!-- RIGHT BUBBLE: Toolbar / Links -->
       <div class="bg-white rounded-lg shadow p-6 space-y-6">
         <h2 class="text-2xl font-bold text-gray-800">Toolbar</h2>
         <div>
@@ -84,7 +89,7 @@
           </ul>
         </div>
       </div>
-      
+
     </div>
   </div>
 </div>
