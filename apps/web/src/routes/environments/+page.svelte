@@ -1,7 +1,7 @@
 <script lang="ts">
   import Navbar from '$lib/components/Navbar.svelte';
+  import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 
-  // The load function returns user info and environments.
   export let data: {
     user: {
       id: number;
@@ -19,10 +19,12 @@
   };
 </script>
 
-<!-- Navbar with user and environments -->
+<!-- NAVBAR -->
 <Navbar user={data.user} environments={data.environments} />
 
-<!-- Page Background -->
+<!-- BREADCRUMB (no environmentId, so it only shows "Environments") -->
+<Breadcrumb />
+
 <div class="bg-gray-100 min-h-screen p-8">
   <div class="max-w-7xl mx-auto">
     <div class="grid gap-6 md:grid-cols-[2fr_1fr]">
@@ -57,27 +59,41 @@
       <div class="bg-white rounded-lg shadow p-6 space-y-6">
         <h2 class="text-2xl font-bold text-gray-800">Toolbar</h2>
         <div>
-          <h3 class="text-lg font-semibold text-gray-800 mb-2">
-            Recommended Resources
-          </h3>
+          <h3 class="text-lg font-semibold text-gray-800 mb-2">Recommended Resources</h3>
           <ul class="list-disc list-inside space-y-1">
             <li>
-              <a href="https://docs.mongodb.com" target="_blank" class="text-[#1B6609] hover:underline">
+              <a
+                href="https://docs.mongodb.com"
+                target="_blank"
+                class="text-[#1B6609] hover:underline"
+              >
                 Documentation
               </a>
             </li>
             <li>
-              <a href="https://university.mongodb.com" target="_blank" class="text-[#1B6609] hover:underline">
+              <a
+                href="https://university.mongodb.com"
+                target="_blank"
+                class="text-[#1B6609] hover:underline"
+              >
                 University
               </a>
             </li>
             <li>
-              <a href="https://community.mongodb.com" target="_blank" class="text-[#1B6609] hover:underline">
+              <a
+                href="https://community.mongodb.com"
+                target="_blank"
+                class="text-[#1B6609] hover:underline"
+              >
                 Forums
               </a>
             </li>
             <li>
-              <a href="https://support.mongodb.com" target="_blank" class="text-[#1B6609] hover:underline">
+              <a
+                href="https://support.mongodb.com"
+                target="_blank"
+                class="text-[#1B6609] hover:underline"
+              >
                 Support
               </a>
             </li>

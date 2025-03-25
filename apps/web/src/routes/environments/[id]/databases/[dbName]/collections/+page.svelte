@@ -1,6 +1,6 @@
-<!-- apps/web/src/routes/environments/[id]/databases/[dbName]/collections/+page.svelte -->
 <script lang="ts">
     import Navbar from '$lib/components/Navbar.svelte';
+    import Breadcrumb from '$lib/components/Breadcrumb.svelte';
   
     export let data: {
       user: {
@@ -29,10 +29,14 @@
     };
   </script>
   
-  <!-- NAVBAR -->
   <Navbar user={data.user} environments={data.environments} />
   
-  <!-- PAGE LAYOUT -->
+  <!-- BREADCRUMB: pass environmentId + databaseName => "Environments / Databases / Collections" -->
+  <Breadcrumb
+    environmentId={data.currentEnvironmentId}
+    databaseName={data.currentDatabase}
+  />
+  
   <div class="bg-gray-100 min-h-screen p-8">
     <div class="max-w-7xl mx-auto">
       <div class="grid gap-6 md:grid-cols-[2fr_1fr]">

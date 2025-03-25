@@ -1,5 +1,6 @@
 <script lang="ts">
     import Navbar from '$lib/components/Navbar.svelte';
+    import Breadcrumb from '$lib/components/Breadcrumb.svelte';
   
     export let data: {
       user: {
@@ -50,6 +51,13 @@
   
   <!-- NAVBAR (no "toolbar" on the right this time) -->
   <Navbar user={data.user} environments={data.environments} />
+
+  <!-- BREADCRUMB: pass environmentId, databaseName, collectionName => "Environments / Databases / Collections / Documents" -->
+  <Breadcrumb
+    environmentId={data.currentEnvironmentId}
+    databaseName={data.currentDatabase}
+    collectionName={data.currentCollection}
+   />
   
   <!-- MAIN CONTENT -->
   <div class="bg-gray-100 min-h-screen p-8">
