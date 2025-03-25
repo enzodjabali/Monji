@@ -273,7 +273,7 @@
         <!-- Form for creating a collection -->
         <form method="post" action="?/createCollection" class="space-y-4">
           <div>
-            <label class="block font-semibold mb-1" for="newCollectionName">Collection Name</label>
+            <label class="block font-semibold mb-1" for="newCollectionName">Collection name</label>
             <input
               id="newCollectionName"
               name="collectionName"
@@ -322,7 +322,7 @@
           <!-- Hidden field for current collection name -->
           <input type="hidden" name="oldCollectionName" value={oldCollectionName} />
           <div>
-            <label class="block font-semibold mb-1" for="renameNewCollectionName">New Name</label>
+            <label class="block font-semibold mb-1" for="renameNewCollectionName">New name</label>
             <input
               id="renameNewCollectionName"
               name="newCollectionName"
