@@ -17,8 +17,8 @@
         created_by: number;
       }[];
       collections: {
-        count: number;
         name: string;
+        count: number;
         size: number;
         storageSize: number;
         totalIndexSize: number;
@@ -29,9 +29,10 @@
     };
   </script>
   
+  <!-- NAVBAR -->
   <Navbar user={data.user} environments={data.environments} />
   
-  <!-- BREADCRUMB: pass environmentId + databaseName => "Environments / Databases / Collections" -->
+  <!-- BREADCRUMB: environmentId + databaseName => "Environments / Databases / Collections" -->
   <Breadcrumb
     environmentId={data.currentEnvironmentId}
     databaseName={data.currentDatabase}
@@ -47,10 +48,10 @@
             Collections in {data.database}
           </h2>
           
-          {#if data.collections && data.collections.length > 0}
+          {#if data.collections.length > 0}
             <div class="space-y-4">
               {#each data.collections as col}
-                <!-- CLICKABLE LINK to Documents page -->
+                <!-- Link to the Documents page for this collection -->
                 <a
                   href={`/environments/${data.currentEnvironmentId}/databases/${data.currentDatabase}/collections/${col.name}/documents`}
                   class="block border border-gray-200 rounded p-4 hover:shadow transition"
