@@ -1,19 +1,29 @@
 <script lang="ts">
     import CodeMirrorEditor from 'svelte-codemirror-editor';
     import { json } from '@codemirror/lang-json';
+    import { EditorView } from '@codemirror/view';
   
-    // The editor’s value (a JSON string)
     export let value: string;
-    // Optional change callback (not required, since we use bind:value)
     export let onChange: (val: string) => void = () => {};
   
-    // Enable JSON syntax highlighting
-    let extensions = [json()];
+    let extensions = [
+      json(),
+      EditorView.lineWrapping,
+      EditorView.theme({
+        '&': {
+          maxHeight: '400px', // or 600px, 800px, etc.
+          border: '1px solid #ccc'
+        },
+        '.cm-scroller': {
+          overflow: 'auto'
+        }
+      })
+    ];
   </script>
   
   <CodeMirrorEditor
     bind:value={value}
     {extensions}
     on:change={(event) => onChange(event.detail.value)}
-    class="border border-gray-300 rounded w-full h-80"
+    class="w-full"
   />
