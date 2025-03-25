@@ -21,6 +21,7 @@ func SetupRoutes(cfg *config.Config) *gin.Engine {
 	RegisterDocumentRoutes(api)
 	RegisterMongoUserRoutes(api)
 	RegisterWhoAmIRoute(api)
+	RegisterUserRoutes(api)
 
 	return router
 }
