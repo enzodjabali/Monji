@@ -1,3 +1,4 @@
+// apps/web/src/routes/environments/+page.server.ts
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 
@@ -8,20 +9,35 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
     throw redirect(303, '/login');
   }
 
-  // Fetch environments from your API using the token for authentication
-  const res = await fetch('http://api:8080/environments', {
+  // 1) Fetch the current user
+  const userRes = await fetch('http://api:8080/whoami', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  if (!userRes.ok) {
+    // If something’s wrong with the token, redirect to login
+    throw redirect(303, '/login');
+  }
+  const userData = await userRes.json();
+
+  // 2) Fetch environments
+  const envRes = await fetch('http://api:8080/environments', {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     }
   });
-
-  if (res.ok) {
-    const data = await res.json();
-    return data;
-  } else {
-    // If the API returns an error (e.g. token expired), redirect to login
+  if (!envRes.ok) {
     throw redirect(303, '/login');
   }
+  const envData = await envRes.json();
+
+  // Return both user and environments to the Svelte page
+  return {
+    user: userData.user,               // e.g. { id, first_name, last_name, ... }
+    environments: envData.environments // e.g. array of environment objects
+  };
 };

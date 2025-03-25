@@ -1,8 +1,16 @@
+<!-- apps/web/src/routes/environments/+page.svelte -->
 <script lang="ts">
     import Navbar from '$lib/components/Navbar.svelte';
   
-    // data.environments is provided by +page.server.ts
+    // The load function returns { user, environments }
     export let data: {
+      user: {
+        id: number;
+        first_name: string;
+        last_name: string;
+        email: string;
+        role: string;
+      };
       environments: {
         id: number;
         name: string;
@@ -12,8 +20,8 @@
     };
   </script>
   
-  <!-- Include the Navbar at the top, passing the array of environments -->
-  <Navbar environments={data.environments} />
+  <!-- NAVBAR with user + environments passed in -->
+  <Navbar user={data.user} environments={data.environments} />
   
   <!-- MAIN CONTENT -->
   <div class="bg-gray-100 min-h-screen p-8 space-y-6">
@@ -23,7 +31,6 @@
         Environments
       </h1>
       <div>
-        <!-- Example 'Create environment' button -->
         <button
           class="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-600"
         >
@@ -41,7 +48,6 @@
               <h2 class="text-lg font-semibold text-gray-700">
                 {env.name}
               </h2>
-              <!-- Example "Manage" link or button -->
               <button class="text-blue-600 text-sm hover:text-blue-800">
                 Manage
               </button>
