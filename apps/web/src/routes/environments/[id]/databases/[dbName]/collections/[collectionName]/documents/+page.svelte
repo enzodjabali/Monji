@@ -1,6 +1,7 @@
 <script lang="ts">
     import Navbar from '$lib/components/Navbar.svelte';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+    import { goto } from '$app/navigation';
   
     export let data: {
       user: {
@@ -46,14 +47,19 @@
   
     /** Build the URL to edit a specific document using its _id. */
     function editUrl(doc: any) {
-      const docID = doc._id; // Must be a string
+      const docID = doc._id; // Must be a string or something unique
       return `/environments/${data.currentEnvironmentId}/databases/${data.currentDatabase}/collections/${data.currentCollection}/documents/${docID}`;
+    }
+  
+    /** Navigate to the edit page for a row. */
+    function handleRowClick(doc: any) {
+      goto(editUrl(doc));
     }
   </script>
   
   <Navbar user={data.user} environments={data.environments} />
   
-  <!-- BREADCRUMB: environmentId + databaseName + collectionName => "Environments / Databases / Collections / Documents" -->
+  <!-- BREADCRUMB: environmentId + databaseName + collectionName -->
   <Breadcrumb
     environmentId={data.currentEnvironmentId}
     databaseName={data.currentDatabase}
@@ -90,17 +96,18 @@
             </thead>
             <tbody>
               {#each data.documents as doc}
-                <tr class="border-b hover:bg-gray-50">
+                <!-- Entire row is clickable -->
+                <tr
+                  class="border-b hover:bg-gray-50 cursor-pointer"
+                  on:click={() => handleRowClick(doc)}
+                >
                   {#each fieldNames as field}
                     <td class="py-2 px-3 border-r last:border-r-0 align-top text-sm text-gray-700">
-                      <!-- Wrap the cell content in an anchor for editing -->
-                      <a href={editUrl(doc)} class="block w-full h-full text-blue-600 hover:underline">
-                        {#if doc[field] !== undefined}
-                          {previewValue(doc[field])}
-                        {:else}
-                          <span class="text-gray-400">--</span>
-                        {/if}
-                      </a>
+                      {#if doc[field] !== undefined}
+                        {previewValue(doc[field])}
+                      {:else}
+                        <span class="text-gray-400">--</span>
+                      {/if}
                     </td>
                   {/each}
                 </tr>
