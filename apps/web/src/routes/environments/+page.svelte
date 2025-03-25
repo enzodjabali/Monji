@@ -1,8 +1,7 @@
-<!-- apps/web/src/routes/environments/+page.svelte -->
 <script lang="ts">
     import Navbar from '$lib/components/Navbar.svelte';
   
-    // The load function returns { user, environments }
+    // Data returned by +page.server.ts
     export let data: {
       user: {
         id: number;
@@ -20,53 +19,80 @@
     };
   </script>
   
-  <!-- NAVBAR with user + environments passed in -->
+  <!-- NAVBAR -->
   <Navbar user={data.user} environments={data.environments} />
   
-  <!-- MAIN CONTENT -->
-  <div class="bg-gray-100 min-h-screen p-8 space-y-6">
-    <!-- Page Header -->
-    <header class="flex items-center justify-between">
-      <h1 class="text-3xl font-bold text-gray-800">
-        Environments
-      </h1>
-      <div>
-        <button
-          class="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-600"
-        >
-          Create Environment
-        </button>
-      </div>
-    </header>
-  
-    {#if data.environments.length > 0}
-      <!-- Grid of environment cards -->
-      <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {#each data.environments as env}
-          <div class="bg-white rounded shadow p-5 space-y-2">
-            <div class="flex items-center justify-between">
-              <h2 class="text-lg font-semibold text-gray-700">
-                {env.name}
-              </h2>
-              <button class="text-blue-600 text-sm hover:text-blue-800">
-                Manage
-              </button>
+  <!-- PAGE BACKGROUND -->
+  <div class="bg-gray-100 min-h-screen p-8">
+    <!-- Optional container to center content -->
+    <div class="max-w-7xl mx-auto">
+      <!-- 2-column layout: left = 2/3, right = 1/3 -->
+      <div class="grid gap-6 md:grid-cols-[2fr_1fr]">
+        
+        <!-- LEFT BUBBLE: ENVIRONMENTS LIST -->
+        <div class="bg-white rounded-lg shadow p-6 space-y-4">
+          <h2 class="text-2xl font-bold text-gray-800">Environments</h2>
+          
+          {#if data.environments.length > 0}
+            <div class="grid gap-4">
+              {#each data.environments as env}
+                <div class="bg-white border border-gray-200 rounded-lg p-4">
+                  <div class="flex items-center justify-between mb-1">
+                    <h3 class="text-lg font-semibold text-gray-800">
+                      {env.name}
+                    </h3>
+                    <!-- "Manage" button in #1B6609 -->
+                    <button class="text-[#1B6609] text-sm hover:underline">
+                      Manage
+                    </button>
+                  </div>
+                  <!-- Only show the connection string, remove ID/Created By -->
+                  <p class="text-sm text-gray-500">
+                    <span class="font-semibold">Connection:</span> {env.connection_string}
+                  </p>
+                </div>
+              {/each}
             </div>
-            <p class="text-sm text-gray-500">
-              <span class="font-semibold">ID:</span> {env.id}
-            </p>
-            <p class="text-sm text-gray-500">
-              <span class="font-semibold">Connection:</span> {env.connection_string}
-            </p>
-            <p class="text-sm text-gray-500">
-              <span class="font-semibold">Created by:</span> {env.created_by}
-            </p>
+          {:else}
+            <p class="text-gray-600">No environments available.</p>
+          {/if}
+        </div>
+  
+        <!-- RIGHT BUBBLE: TOOLBAR / LINKS -->
+        <div class="bg-white rounded-lg shadow p-6 space-y-6">
+          <h2 class="text-2xl font-bold text-gray-800">Toolbar</h2>
+          
+          <!-- Example: "Recommended Resources" section -->
+          <div>
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">
+              Recommended Resources
+            </h3>
+            <!-- Make all links #1B6609 -->
+            <ul class="list-disc list-inside space-y-1">
+              <li>
+                <a href="https://docs.mongodb.com" target="_blank" class="text-[#1B6609] hover:underline">
+                  Documentation
+                </a>
+              </li>
+              <li>
+                <a href="https://university.mongodb.com" target="_blank" class="text-[#1B6609] hover:underline">
+                  University
+                </a>
+              </li>
+              <li>
+                <a href="https://community.mongodb.com" target="_blank" class="text-[#1B6609] hover:underline">
+                  Forums
+                </a>
+              </li>
+              <li>
+                <a href="https://support.mongodb.com" target="_blank" class="text-[#1B6609] hover:underline">
+                  Support
+                </a>
+              </li>
+            </ul>
           </div>
-        {/each}
+        </div>
+  
       </div>
-    {:else}
-      <p class="text-gray-600">
-        No environments available.
-      </p>
-    {/if}
+    </div>
   </div>
