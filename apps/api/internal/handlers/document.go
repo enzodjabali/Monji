@@ -207,12 +207,15 @@ func UpdateDocument(c *gin.Context) {
 		return
 	}
 
+	// Remove _id field if present to avoid immutable field error
+	delete(updateData, "_id")
+
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	client, err := database.ConnectMongo(ctx, env.ConnectionString)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB: " + err.Error()})
 		return
 	}
 	defer client.Disconnect(ctx)

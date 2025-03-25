@@ -21,5 +21,9 @@
         "tailwindcss": "^4.0.0",
         "typescript": "^5.0.0",
         "vite": "^6.0.0"
+    },
+    "dependencies": {
+        "@codemirror/lang-json": "^6.0.1",
+        "svelte-codemirror-editor": "^1.4.1"
     }
 }
