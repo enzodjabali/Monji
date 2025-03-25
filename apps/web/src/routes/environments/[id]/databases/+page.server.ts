@@ -1,44 +1,45 @@
-// apps/web/src/routes/environments/[id]/databases/+page.server.ts
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async ({ params, cookies, fetch }) => {
   const token = cookies.get('token');
   if (!token) {
-    // If no token, redirect to login
     throw redirect(303, '/login');
   }
 
-  // 'params.id' is the environment ID from the URL
-  const envId = params.id;
-
-  // Fetch databases for this environment
-  const res = await fetch(`http://api:8080/environments/${envId}/databases`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
+  // Fetch connected user info
+  const userRes = await fetch('http://api:8080/whoami', {
+    headers: { 'Authorization': `Bearer ${token}` }
   });
+  if (!userRes.ok) {
+    throw redirect(303, '/login');
+  }
+  const userData = await userRes.json();
 
-  // If the API call fails or returns an error, handle it
-  if (!res.ok) {
-    // For example, redirect back to /environments or show an error
+  // Fetch the environments list for the navbar
+  const envRes = await fetch('http://api:8080/environments', {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  if (!envRes.ok) {
+    throw redirect(303, '/login');
+  }
+  const envData = await envRes.json();
+
+  // Fetch databases for the selected environment (params.id)
+  const envId = params.id;
+  const dbRes = await fetch(`http://api:8080/environments/${envId}/databases`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  if (!dbRes.ok) {
     throw redirect(303, '/environments');
   }
+  const dbData = await dbRes.json();
 
-  // Example response shape:
-  // {
-  //   "Databases": [
-  //     { "Name": "admin", "SizeOnDisk": 151552, "Empty": false },
-  //     ...
-  //   ],
-  //   "TotalSize": 425984
-  // }
-  const data = await res.json();
-
-  // Return the relevant info to +page.svelte
   return {
-    databases: data.Databases, // array of { Name, SizeOnDisk, Empty }
-    totalSize: data.TotalSize  // total size across all DBs
+    user: userData.user,                // e.g. { id, first_name, last_name, email, role }
+    environments: envData.environments,   // array of environment objects
+    databases: dbData.Databases,          // array of { Name, SizeOnDisk, Empty }
+    totalSize: dbData.TotalSize,          // total size across all databases
+    currentEnvironmentId: envId
   };
 };
