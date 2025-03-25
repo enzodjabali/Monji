@@ -1,6 +1,8 @@
+<!-- apps/web/src/routes/environments/+page.svelte -->
 <script lang="ts">
   import Navbar from '$lib/components/Navbar.svelte';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+  import { fade, scale } from 'svelte/transition';
 
   export let data: {
     user: {
@@ -61,10 +63,7 @@
     showDeleteModal = false;
   }
 
-  /**
-   * Helper for outside clicks: if the user clicks the overlay
-   * itself (rather than the modal content), close the modal
-   */
+  // Close modal if user clicks on the overlay (but not on modal content)
   function handleOverlayClick(e: MouseEvent) {
     if (e.target === e.currentTarget) {
       closeModals();
@@ -73,6 +72,7 @@
 </script>
 
 <Navbar user={data.user} environments={data.environments} />
+<!-- No environmentId in breadcrumb => only shows "Environments" -->
 <Breadcrumb />
 
 <div class="bg-gray-100 min-h-screen p-8">
@@ -179,11 +179,18 @@
 
 <!-- CREATE MODAL -->
 {#if showCreateModal}
+  <!-- Overlay -->
   <div
     class="fixed inset-0 flex items-center justify-center bg-black/20 z-50"
+    transition:fade={{ duration: 150 }}
     on:click={handleOverlayClick}
   >
-    <div class="bg-white rounded-md p-6 w-full max-w-md" on:click|stopPropagation>
+    <!-- Modal Content -->
+    <div
+      class="bg-white rounded-md p-6 w-full max-w-md"
+      transition:scale={{ duration: 150 }}
+      on:click|stopPropagation
+    >
       <h2 class="text-xl font-bold mb-4">Create New Environment</h2>
       <form method="post" action="?/createEnv" class="space-y-4">
         <div>
@@ -232,11 +239,18 @@
 
 <!-- EDIT MODAL -->
 {#if showEditModal && editEnvId !== null}
+  <!-- Overlay -->
   <div
     class="fixed inset-0 flex items-center justify-center bg-black/20 z-50"
+    transition:fade={{ duration: 150 }}
     on:click={handleOverlayClick}
   >
-    <div class="bg-white rounded-md p-6 w-full max-w-md" on:click|stopPropagation>
+    <!-- Modal Content -->
+    <div
+      class="bg-white rounded-md p-6 w-full max-w-md"
+      transition:scale={{ duration: 150 }}
+      on:click|stopPropagation
+    >
       <h2 class="text-xl font-bold mb-4">Edit Environment</h2>
       <form method="post" action="?/updateEnv" class="space-y-4">
         <input type="hidden" name="id" value={editEnvId} />
@@ -287,11 +301,18 @@
 
 <!-- DELETE MODAL -->
 {#if showDeleteModal && deleteEnvId !== null}
+  <!-- Overlay -->
   <div
     class="fixed inset-0 flex items-center justify-center bg-black/20 z-50"
+    transition:fade={{ duration: 150 }}
     on:click={handleOverlayClick}
   >
-    <div class="bg-white rounded-md p-6 w-full max-w-md" on:click|stopPropagation>
+    <!-- Modal Content -->
+    <div
+      class="bg-white rounded-md p-6 w-full max-w-md"
+      transition:scale={{ duration: 150 }}
+      on:click|stopPropagation
+    >
       <h2 class="text-xl font-bold mb-4 text-red-600">Delete Environment</h2>
       <p class="mb-4">
         Are you sure you want to delete "<strong>{deleteEnvName}</strong>"?
