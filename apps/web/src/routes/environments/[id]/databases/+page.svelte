@@ -37,7 +37,6 @@
 
   // Fields for creating a DB
   let newDbName = '';
-  let newInitialCollection = '';
 
   // Fields for renaming a DB
   let oldDbName: string | null = null; // store the original name
@@ -59,7 +58,6 @@
   // Open the Create Database modal
   function openCreateModal() {
     newDbName = '';
-    newInitialCollection = '';
     showCreateModal = true;
   }
 
@@ -119,141 +117,142 @@
 <svelte:window on:click={handleWindowClick} />
 
 <div class="bg-gray-100 min-h-screen p-8">
-  <div class="max-w-7xl mx-auto">
-    <div class="flex justify-between items-center mb-6">
-      <h2 class="text-2xl font-bold text-gray-800">Databases</h2>
-      <!-- Button to open Create Database modal -->
-      <button
-        on:click={openCreateModal}
-        class="text-sm px-3 py-1 bg-[#1B6609] text-white rounded hover:bg-[#1B6609]/90 transition"
-      >
-        + Create Database
-      </button>
-    </div>
+  <div class="max-w-7xl mx-auto grid gap-6 md:grid-cols-[2fr_1fr]">
 
-    <p class="text-gray-700 mb-6">
-      Total Size: {data.totalSize} bytes
-    </p>
+    <!-- LEFT COLUMN: Databases box -->
+    <div class="bg-white rounded-lg shadow p-6 space-y-4">
+      <!-- Heading + create button -->
+      <div class="flex justify-between items-center mb-2">
+        <h2 class="text-2xl font-bold text-gray-800">Databases</h2>
+        <button
+          on:click={openCreateModal}
+          class="text-sm px-3 py-1 bg-[#1B6609] text-white rounded hover:bg-[#1B6609]/90 transition"
+        >
+          Create a database
+        </button>
+      </div>
+      <!-- Total Size -->
+      <p class="text-gray-700 mb-4">
+        Total Size: {data.totalSize} bytes
+      </p>
 
-    <div class="grid gap-6 md:grid-cols-[2fr_1fr]">
-      <!-- LEFT COLUMN: Databases list -->
-      <div class="bg-white rounded-lg shadow p-6 space-y-4">
-        {#if data.databases?.length > 0}
-          <div class="grid gap-4">
-            {#each data.databases as db}
-              <div class="border border-gray-200 rounded p-4 hover:shadow transition relative">
-                <!-- Top row: Name + Manage button -->
-                <div class="flex items-center justify-between mb-1">
-                  <h3 class="font-semibold text-lg text-gray-800">
-                    <!-- Link to the collections for this DB -->
-                    <a
-                      href={`/environments/${data.currentEnvironmentId}/databases/${db.Name}/collections`}
-                      class="hover:underline"
-                    >
-                      {db.Name}
-                    </a>
-                  </h3>
-                  <!-- Manage button -->
-                  <div
-                    class="relative"
-                    id={"db-manage-dropdown-" + db.Name}
+      <!-- Databases list -->
+      {#if data.databases?.length > 0}
+        <div class="grid gap-4">
+          {#each data.databases as db}
+            <div class="border border-gray-200 rounded p-4 hover:shadow transition relative">
+              <!-- Top row: Name + Manage button -->
+              <div class="flex items-center justify-between mb-1">
+                <h3 class="font-semibold text-lg text-gray-800">
+                  <!-- Link to the collections for this DB -->
+                  <a
+                    href={`/environments/${data.currentEnvironmentId}/databases/${db.Name}/collections`}
+                    class="hover:underline"
                   >
-                    <button
-                      on:click={() => toggleManageDropdown(db.Name)}
-                      class="text-sm px-3 py-1 bg-[#1B6609] text-white rounded
-                             hover:bg-[#1B6609]/90 transition"
+                    {db.Name}
+                  </a>
+                </h3>
+                <!-- Manage button -->
+                <div
+                  class="relative"
+                  id={"db-manage-dropdown-" + db.Name}
+                >
+                  <button
+                    on:click={() => toggleManageDropdown(db.Name)}
+                    class="text-sm px-3 py-1 bg-[#1B6609] text-white rounded
+                           hover:bg-[#1B6609]/90 transition"
+                  >
+                    Manage
+                  </button>
+                  {#if manageDropdownOpen === db.Name}
+                    <div
+                      class="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded shadow z-10"
+                      transition:scale
                     >
-                      Manage
-                    </button>
-                    {#if manageDropdownOpen === db.Name}
-                      <div
-                        class="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded shadow z-10"
-                        transition:scale
-                      >
-                        <ul class="py-1">
-                          <li>
-                            <button
-                              class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm"
-                              on:click={() => openEditModal(db.Name)}
-                            >
-                              Rename
-                            </button>
-                          </li>
-                          <li>
-                            <button
-                              class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm text-red-600"
-                              on:click={() => openDeleteModal(db.Name)}
-                            >
-                              Delete
-                            </button>
-                          </li>
-                        </ul>
-                      </div>
-                    {/if}
-                  </div>
+                      <ul class="py-1">
+                        <li>
+                          <button
+                            class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm"
+                            on:click={() => openEditModal(db.Name)}
+                          >
+                            Rename
+                          </button>
+                        </li>
+                        <li>
+                          <button
+                            class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm text-red-600"
+                            on:click={() => openDeleteModal(db.Name)}
+                          >
+                            Delete
+                          </button>
+                        </li>
+                      </ul>
+                    </div>
+                  {/if}
                 </div>
-
-                <!-- Some DB stats -->
-                <p class="text-sm text-gray-600">
-                  Size on Disk: {db.SizeOnDisk} bytes
-                </p>
-                <p class="text-sm text-gray-600">
-                  Empty: {db.Empty ? 'Yes' : 'No'}
-                </p>
               </div>
-            {/each}
-          </div>
-        {:else}
-          <p class="text-gray-600">No databases found.</p>
-        {/if}
-      </div>
 
-      <!-- RIGHT COLUMN: "Toolbar" or other info -->
-      <div class="bg-white rounded-lg shadow p-6 space-y-6">
-        <h2 class="text-2xl font-bold text-gray-800">Toolbar</h2>
-        <div>
-          <h3 class="text-lg font-semibold text-gray-800 mb-2">Recommended Resources</h3>
-          <ul class="list-disc list-inside space-y-1">
-            <li>
-              <a
-                href="https://docs.mongodb.com"
-                target="_blank"
-                class="text-[#1B6609] hover:underline"
-              >
-                Documentation
-              </a>
-            </li>
-            <li>
-              <a
-                href="https://university.mongodb.com"
-                target="_blank"
-                class="text-[#1B6609] hover:underline"
-              >
-                University
-              </a>
-            </li>
-            <li>
-              <a
-                href="https://community.mongodb.com"
-                target="_blank"
-                class="text-[#1B6609] hover:underline"
-              >
-                Forums
-              </a>
-            </li>
-            <li>
-              <a
-                href="https://support.mongodb.com"
-                target="_blank"
-                class="text-[#1B6609] hover:underline"
-              >
-                Support
-              </a>
-            </li>
-          </ul>
+              <!-- Some DB stats -->
+              <p class="text-sm text-gray-600">
+                Size on Disk: {db.SizeOnDisk} bytes
+              </p>
+              <p class="text-sm text-gray-600">
+                Empty: {db.Empty ? 'Yes' : 'No'}
+              </p>
+            </div>
+          {/each}
         </div>
+      {:else}
+        <p class="text-gray-600">No databases found.</p>
+      {/if}
+    </div>
+
+    <!-- RIGHT COLUMN: "Toolbar" or other info -->
+    <div class="bg-white rounded-lg shadow p-6 space-y-6">
+      <h2 class="text-2xl font-bold text-gray-800">Toolbar</h2>
+      <div>
+        <h3 class="text-lg font-semibold text-gray-800 mb-2">Recommended Resources</h3>
+        <ul class="list-disc list-inside space-y-1">
+          <li>
+            <a
+              href="https://docs.mongodb.com"
+              target="_blank"
+              class="text-[#1B6609] hover:underline"
+            >
+              Documentation
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://university.mongodb.com"
+              target="_blank"
+              class="text-[#1B6609] hover:underline"
+            >
+              University
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://community.mongodb.com"
+              target="_blank"
+              class="text-[#1B6609] hover:underline"
+            >
+              Forums
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://support.mongodb.com"
+              target="_blank"
+              class="text-[#1B6609] hover:underline"
+            >
+              Support
+            </a>
+          </li>
+        </ul>
       </div>
     </div>
+
   </div>
 </div>
 
@@ -269,30 +268,20 @@
       transition:scale={{ duration: 150 }}
       on:click|stopPropagation
     >
-      <h2 class="text-xl font-bold mb-4">Create Database</h2>
+      <h2 class="text-xl font-bold mb-4">Create a database</h2>
       <!-- Action form => ?/createDb -->
       <form method="post" action="?/createDb" class="space-y-4">
+        <!-- We won't ask for initialCollection; we pass "delete_me" behind the scenes -->
+        <input type="hidden" name="initialCollection" value="delete_me" />
+
         <div>
-          <label class="block font-semibold mb-1" for="newDbName">Database Name</label>
+          <label class="block font-semibold mb-1" for="newDbName">Database name</label>
           <input
             id="newDbName"
             name="dbName"
             type="text"
             bind:value={newDbName}
             placeholder="e.g. myNewDatabase"
-            required
-            class="w-full border border-gray-300 rounded px-3 py-2
-                   focus:outline-none focus:ring-2 focus:ring-blue-600"
-          />
-        </div>
-        <div>
-          <label class="block font-semibold mb-1" for="initialCollection">Initial Collection</label>
-          <input
-            id="initialCollection"
-            name="initialCollection"
-            type="text"
-            bind:value={newInitialCollection}
-            placeholder="e.g. myFirstCollection"
             required
             class="w-full border border-gray-300 rounded px-3 py-2
                    focus:outline-none focus:ring-2 focus:ring-blue-600"
@@ -331,14 +320,14 @@
       transition:scale={{ duration: 150 }}
       on:click|stopPropagation
     >
-      <h2 class="text-xl font-bold mb-4">Rename Database</h2>
+      <h2 class="text-xl font-bold mb-4">Rename the database</h2>
       <!-- Action form => ?/updateDb -->
       <form method="post" action="?/updateDb" class="space-y-4">
         <!-- Hidden field for the old DB name -->
         <input type="hidden" name="oldDbName" value={oldDbName} />
 
         <div>
-          <label class="block font-semibold mb-1" for="renameDbNewName">New Name</label>
+          <label class="block font-semibold mb-1" for="renameDbNewName">New name</label>
           <input
             id="renameDbNewName"
             name="newDbName"
@@ -383,7 +372,7 @@
       transition:scale={{ duration: 150 }}
       on:click|stopPropagation
     >
-      <h2 class="text-xl font-bold mb-4 text-red-600">Delete Database</h2>
+      <h2 class="text-xl font-bold mb-4 text-red-600">Delete the database</h2>
       <p class="mb-4">
         To confirm, type the database name: <strong>"{deleteDbName}"</strong> below.
       </p>
