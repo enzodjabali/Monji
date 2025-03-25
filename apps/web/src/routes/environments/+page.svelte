@@ -1,4 +1,5 @@
 <script lang="ts">
+    import Navbar from '$lib/components/Navbar.svelte';
     // data.environments is the array returned by the load function
     export let data: {
       environments: {
@@ -9,7 +10,8 @@
       }[];
     };
   </script>
-  
+
+  <Navbar title="Monji" />
   <div class="bg-gray-100 min-h-screen p-8 space-y-6">
     <!-- Page Header -->
     <header class="flex items-center justify-between">
