@@ -3,6 +3,7 @@
   import Navbar from '$lib/components/Navbar.svelte';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
   import { fade, scale } from 'svelte/transition';
+  import { goto } from '$app/navigation';
 
   export let data: {
     user: {
@@ -98,7 +99,7 @@
     }
   }
 
-  // If user clicks anywhere in window, close the Manage dropdown unless click is inside it
+  // If user clicks anywhere in window, close the Manage dropdown unless inside it
   function handleWindowClick(e: MouseEvent) {
     if (manageDropdownOpen === null) return;
     const container = document.getElementById(`env-manage-dropdown-${manageDropdownOpen}`);
@@ -107,12 +108,18 @@
       manageDropdownOpen = null;
     }
   }
+
+  // Navigate to the environment's Databases page
+  function goToDatabases(envId: number) {
+    goto(`/environments/${envId}/databases`);
+  }
 </script>
 
 <!-- Close dropdown if user clicks outside -->
 <svelte:window on:click={handleWindowClick} />
 
 <Navbar user={data.user} environments={data.environments} />
+<!-- Just "Environments" in breadcrumb -->
 <Breadcrumb />
 
 <div class="bg-gray-100 min-h-screen p-8">
@@ -121,9 +128,9 @@
       <h2 class="text-2xl font-bold text-gray-800">Environments</h2>
       <button
         on:click={openCreateModal}
-        class="bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-500 transition"
+        class="text-sm px-3 py-1 bg-[#1B6609] text-white rounded hover:bg-[#1B6609]/90 transition"
       >
-        + Create New Environment
+        Add an environment
       </button>
     </div>
 
@@ -134,24 +141,25 @@
           <div class="grid gap-4">
             {#each data.environments as env}
               <!-- Single environment card -->
-              <div class="border border-gray-200 rounded-lg p-4 hover:shadow transition">
+              <div
+                class="border border-gray-200 rounded-lg p-4 hover:shadow transition relative cursor-pointer"
+                on:click={() => goToDatabases(env.id)}
+              >
+                <!-- Using a nested container for the top row so "Manage" can stopPropagation -->
                 <div class="flex items-center justify-between mb-1">
-                  <!-- Env name links to the Databases page -->
                   <h3 class="text-lg font-semibold text-gray-800">
-                    <a
-                      href={`/environments/${env.id}/databases`}
-                      class="hover:underline"
-                    >
-                      {env.name}
-                    </a>
+                    {env.name}
                   </h3>
-
-                  <!-- Manage button toggles dropdown for Edit/Delete -->
-                  <div class="relative" id={"env-manage-dropdown-" + env.id}>
+                  <!-- Manage button (stop click from going to parent) -->
+                  <div
+                    class="relative"
+                    id={"env-manage-dropdown-" + env.id}
+                    on:click|stopPropagation
+                  >
                     <button
                       on:click={() => toggleManageDropdown(env.id)}
-                      class="text-sm px-3 py-1 bg-gray-100 border border-gray-300 rounded
-                             hover:bg-gray-200 transition"
+                      class="text-sm px-3 py-1 bg-[#1B6609] text-white rounded
+                             hover:bg-[#1B6609]/90 transition border border-transparent"
                     >
                       Manage
                     </button>
@@ -176,7 +184,7 @@
                               class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm text-red-600"
                               on:click={() => openDeleteModal(env.id, env.name)}
                             >
-                              Delete
+                              Remove
                             </button>
                           </li>
                         </ul>
@@ -185,7 +193,7 @@
                   </div>
                 </div>
 
-                <!-- Connection string info -->
+                <!-- Connection string -->
                 <p class="text-sm text-gray-500">
                   <span class="font-semibold">Connection:</span> {env.connection_string}
                 </p>
@@ -260,7 +268,7 @@
       transition:scale={{ duration: 150 }}
       on:click|stopPropagation
     >
-      <h2 class="text-xl font-bold mb-4">Create New Environment</h2>
+      <h2 class="text-xl font-bold mb-4">Add an environment</h2>
       <form method="post" action="?/createEnv" class="space-y-4">
         <div>
           <label class="block font-semibold mb-1" for="newName">Name</label>
@@ -269,20 +277,20 @@
             name="name"
             type="text"
             bind:value={newName}
-            placeholder="e.g. Production Database"
+            placeholder="e.g. Mongo production environment"
             required
             class="w-full border border-gray-300 rounded px-3 py-2
                    focus:outline-none focus:ring-2 focus:ring-blue-600"
           />
         </div>
         <div>
-          <label class="block font-semibold mb-1" for="newConnection">Connection String</label>
+          <label class="block font-semibold mb-1" for="newConnection">Connection string</label>
           <input
             id="newConnection"
             name="connection_string"
             type="text"
             bind:value={newConnection}
-            placeholder="mongodb+srv://username:password@cluster0.mongodb.net"
+            placeholder="mongodb://root:password@host:27017"
             required
             class="w-full border border-gray-300 rounded px-3 py-2
                    focus:outline-none focus:ring-2 focus:ring-blue-600"
@@ -298,9 +306,9 @@
           </button>
           <button
             type="submit"
-            class="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-500"
+            class="px-4 py-2 rounded bg-[#1B6609] text-white hover:bg-[#1B6609]/90"
           >
-            Create
+            Add
           </button>
         </div>
       </form>
@@ -322,7 +330,7 @@
       transition:scale={{ duration: 150 }}
       on:click|stopPropagation
     >
-      <h2 class="text-xl font-bold mb-4">Edit Environment</h2>
+      <h2 class="text-xl font-bold mb-4">Edit the environment</h2>
       <form method="post" action="?/updateEnv" class="space-y-4">
         <!-- Hidden ID -->
         <input type="hidden" name="id" value={editEnvId} />
@@ -334,20 +342,20 @@
             name="name"
             type="text"
             bind:value={editName}
-            placeholder="Give it a descriptive name"
+            placeholder="e.g. Mongo production environment"
             required
             class="w-full border border-gray-300 rounded px-3 py-2
                    focus:outline-none focus:ring-2 focus:ring-blue-600"
           />
         </div>
         <div>
-          <label class="block font-semibold mb-1" for="editConnection">Connection String</label>
+          <label class="block font-semibold mb-1" for="editConnection">Connection string</label>
           <input
             id="editConnection"
             name="connection_string"
             type="text"
             bind:value={editConnection}
-            placeholder="mongodb://root:pass@host:27017"
+            placeholder="mongodb://root:password@host:27017"
             required
             class="w-full border border-gray-300 rounded px-3 py-2
                    focus:outline-none focus:ring-2 focus:ring-blue-600"
@@ -363,7 +371,7 @@
           </button>
           <button
             type="submit"
-            class="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-500"
+            class="px-4 py-2 rounded bg-[#1B6609] text-white hover:bg-[#1B6609]/90"
           >
             Save
           </button>
@@ -387,7 +395,7 @@
       transition:scale={{ duration: 150 }}
       on:click|stopPropagation
     >
-      <h2 class="text-xl font-bold mb-4 text-red-600">Delete Environment</h2>
+      <h2 class="text-xl font-bold mb-4 text-red-600">Remove the environment</h2>
       <p class="mb-4">
         To confirm, type the environment name:
         <strong>"{deleteEnvName}"</strong> below.
@@ -405,7 +413,7 @@
             id="deleteInputName"
             type="text"
             bind:value={deleteInputName}
-            placeholder="Type the environment name"
+            placeholder="{deleteEnvName}"
             class="w-full border border-gray-300 rounded px-3 py-2
                    focus:outline-none focus:ring-2 focus:ring-blue-600"
           />
@@ -424,7 +432,7 @@
             class="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-500"
             disabled={deleteInputName !== deleteEnvName}
           >
-            Delete
+            Remove
           </button>
         </div>
       </form>
