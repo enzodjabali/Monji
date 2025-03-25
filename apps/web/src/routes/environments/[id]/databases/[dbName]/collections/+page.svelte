@@ -30,7 +30,7 @@
   </script>
   
   <!-- NAVBAR -->
-  <Navbar user={data.user} environments={data.environments} />
+  <Navbar user={data.user} environments={data.environments} currentEnvironmentId={data.currentEnvironmentId} />
   
   <!-- BREADCRUMB: environmentId + databaseName => "Environments / Databases / Collections" -->
   <Breadcrumb
