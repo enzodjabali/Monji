@@ -118,7 +118,7 @@
 <!-- Close dropdown if user clicks outside -->
 <svelte:window on:click={handleWindowClick} />
 
-<Navbar user={data.user} environments={data.environments} />
+<Navbar user={data.user} environments={data.environments} currentEnvironmentId="" />
 <!-- Just "Environments" in breadcrumb -->
 <Breadcrumb />
 

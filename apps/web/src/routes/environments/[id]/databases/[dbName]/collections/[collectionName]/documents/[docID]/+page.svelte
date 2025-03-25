@@ -55,7 +55,7 @@
   </script>
   
   <!-- Navbar and Breadcrumb remain unchanged -->
-  <Navbar user={data.user} environments={data.environments} />
+  <Navbar user={data.user} environments={data.environments} currentEnvironmentId={data.currentEnvironmentId} />
   
   <Breadcrumb
     environmentId={data.currentEnvironmentId}

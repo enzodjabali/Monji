@@ -26,7 +26,7 @@
   };
 </script>
 
-<Navbar user={data.user} environments={data.environments} />
+<Navbar user={data.user} environments={data.environments} currentEnvironmentId={data.currentEnvironmentId} />
 
 <!-- BREADCRUMB: pass environmentId so it shows "Environments / Databases" -->
 <Breadcrumb environmentId={data.currentEnvironmentId} />
