@@ -27,7 +27,7 @@
   let showEditModal = false;
   let showDeleteModal = false;
 
-  // For the environment "Manage" dropdown, we track which env ID is open, or null if none.
+  // For the environment "Manage" dropdown, track which env ID is open
   let manageDropdownOpen: number | null = null;
 
   // Data for editing
@@ -71,7 +71,7 @@
     editEnvId = envId;
     editName = name;
     editConnection = connection;
-    closeManageDropdown(); // optional
+    closeManageDropdown();
     showEditModal = true;
   }
 
@@ -80,7 +80,7 @@
     deleteEnvId = envId;
     deleteEnvName = name;
     deleteInputName = '';
-    closeManageDropdown(); // optional
+    closeManageDropdown();
     showDeleteModal = true;
   }
 
@@ -98,26 +98,21 @@
     }
   }
 
-  // If user clicks anywhere in window, and a manage dropdown is open,
-  // close it unless the click is inside the dropdown.
+  // If user clicks anywhere in window, close the Manage dropdown unless click is inside it
   function handleWindowClick(e: MouseEvent) {
     if (manageDropdownOpen === null) return;
-
-    // Use an ID-based approach to find the container for that env
     const container = document.getElementById(`env-manage-dropdown-${manageDropdownOpen}`);
     if (!container) return;
-
     if (!container.contains(e.target as Node)) {
       manageDropdownOpen = null;
     }
   }
 </script>
 
-<!-- Close the manage dropdown if user clicks outside it -->
+<!-- Close dropdown if user clicks outside -->
 <svelte:window on:click={handleWindowClick} />
 
 <Navbar user={data.user} environments={data.environments} />
-<!-- No environmentId => only "Environments" in breadcrumb -->
 <Breadcrumb />
 
 <div class="bg-gray-100 min-h-screen p-8">
@@ -141,7 +136,7 @@
               <!-- Single environment card -->
               <div class="border border-gray-200 rounded-lg p-4 hover:shadow transition">
                 <div class="flex items-center justify-between mb-1">
-                  <!-- The environment name links to the Databases page -->
+                  <!-- Env name links to the Databases page -->
                   <h3 class="text-lg font-semibold text-gray-800">
                     <a
                       href={`/environments/${env.id}/databases`}
@@ -151,7 +146,7 @@
                     </a>
                   </h3>
 
-                  <!-- Manage button that toggles a dropdown for Edit/Delete -->
+                  <!-- Manage button toggles dropdown for Edit/Delete -->
                   <div class="relative" id={"env-manage-dropdown-" + env.id}>
                     <button
                       on:click={() => toggleManageDropdown(env.id)}
@@ -274,6 +269,7 @@
             name="name"
             type="text"
             bind:value={newName}
+            placeholder="e.g. Production Database"
             required
             class="w-full border border-gray-300 rounded px-3 py-2
                    focus:outline-none focus:ring-2 focus:ring-blue-600"
@@ -286,6 +282,7 @@
             name="connection_string"
             type="text"
             bind:value={newConnection}
+            placeholder="mongodb+srv://username:password@cluster0.mongodb.net"
             required
             class="w-full border border-gray-300 rounded px-3 py-2
                    focus:outline-none focus:ring-2 focus:ring-blue-600"
@@ -337,6 +334,7 @@
             name="name"
             type="text"
             bind:value={editName}
+            placeholder="Give it a descriptive name"
             required
             class="w-full border border-gray-300 rounded px-3 py-2
                    focus:outline-none focus:ring-2 focus:ring-blue-600"
@@ -349,6 +347,7 @@
             name="connection_string"
             type="text"
             bind:value={editConnection}
+            placeholder="mongodb://root:pass@host:27017"
             required
             class="w-full border border-gray-300 rounded px-3 py-2
                    focus:outline-none focus:ring-2 focus:ring-blue-600"
@@ -406,6 +405,7 @@
             id="deleteInputName"
             type="text"
             bind:value={deleteInputName}
+            placeholder="Type the environment name"
             class="w-full border border-gray-300 rounded px-3 py-2
                    focus:outline-none focus:ring-2 focus:ring-blue-600"
           />
