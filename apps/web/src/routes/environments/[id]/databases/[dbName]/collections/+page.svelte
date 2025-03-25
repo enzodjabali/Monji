@@ -50,7 +50,7 @@
     let deleteCollectionName: string | null = null;
     let typedCollectionName = '';
   
-    // Toggle "Manage" dropdown for a given collection (using its name)
+    // Toggle "Manage" dropdown for a given collection name
     function toggleManageDropdown(collName: string) {
       manageDropdownOpen = manageDropdownOpen === collName ? null : collName;
     }
@@ -107,18 +107,20 @@
   
     // Navigate to the documents page for a given collection
     function goToDocuments(collName: string) {
-      goto(`/environments/${data.currentEnvironmentId}/databases/${data.currentDatabase}/collections/${collName}/documents`);
+      goto(
+        `/environments/${data.currentEnvironmentId}/databases/${data.currentDatabase}/collections/${collName}/documents`
+      );
     }
   </script>
   
-  <!-- Pass current environment and database to Navbar -->
+  <!-- NAVBAR -->
   <Navbar
     user={data.user}
     environments={data.environments}
     currentEnvironmentId={data.currentEnvironmentId}
   />
   
-  <!-- Breadcrumb: Environments / Databases / Collections -->
+  <!-- BREADCRUMB: Environments / Databases / Collections -->
   <Breadcrumb
     environmentId={data.currentEnvironmentId}
     databaseName={data.currentDatabase}
@@ -128,9 +130,10 @@
   <svelte:window on:click={handleWindowClick} />
   
   <div class="bg-gray-100 min-h-screen p-8">
-    <div class="max-w-7xl mx-auto">
-      <!-- Heading and Create Collection button in one box -->
+    <div class="max-w-7xl mx-auto grid gap-6 md:grid-cols-[2fr_1fr]">
+      <!-- LEFT COLUMN: Collections -->
       <div class="bg-white rounded-lg shadow p-6 space-y-4">
+        <!-- Header + Create button -->
         <div class="flex justify-between items-center mb-2">
           <h2 class="text-2xl font-bold text-gray-800">Collections in {data.database}</h2>
           <button
@@ -154,7 +157,7 @@
                   <h3 class="font-semibold text-lg text-gray-800">
                     {coll.name}
                   </h3>
-                  <!-- Manage button for the collection -->
+                  <!-- Manage button for the collection (stopPropagation so we don't navigate) -->
                   <div
                     class="relative"
                     id={"coll-manage-dropdown-" + coll.name}
@@ -194,24 +197,62 @@
                   </div>
                 </div>
                 <!-- Collection stats -->
-                <p class="text-sm text-gray-600">
-                  Count: {coll.count}
-                </p>
-                <p class="text-sm text-gray-600">
-                  Size: {coll.size} bytes
-                </p>
-                <p class="text-sm text-gray-600">
-                  Storage Size: {coll.storageSize} bytes
-                </p>
-                <p class="text-sm text-gray-600">
-                  Total Index Size: {coll.totalIndexSize} bytes
-                </p>
+                <p class="text-sm text-gray-600">Count: {coll.count}</p>
+                <p class="text-sm text-gray-600">Size: {coll.size} bytes</p>
+                <p class="text-sm text-gray-600">Storage Size: {coll.storageSize} bytes</p>
+                <p class="text-sm text-gray-600">Total Index Size: {coll.totalIndexSize} bytes</p>
               </div>
             {/each}
           </div>
         {:else}
           <p class="text-gray-600">No collections found.</p>
         {/if}
+      </div>
+  
+      <!-- RIGHT COLUMN: Toolbox / Resources -->
+      <div class="bg-white rounded-lg shadow p-6 space-y-6">
+        <h2 class="text-2xl font-bold text-gray-800">Toolbar</h2>
+        <div>
+          <h3 class="text-lg font-semibold text-gray-800 mb-2">Recommended Resources</h3>
+          <ul class="list-disc list-inside space-y-1">
+            <li>
+              <a
+                href="https://docs.mongodb.com"
+                target="_blank"
+                class="text-[#1B6609] hover:underline"
+              >
+                Documentation
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://university.mongodb.com"
+                target="_blank"
+                class="text-[#1B6609] hover:underline"
+              >
+                University
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://community.mongodb.com"
+                target="_blank"
+                class="text-[#1B6609] hover:underline"
+              >
+                Forums
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://support.mongodb.com"
+                target="_blank"
+                class="text-[#1B6609] hover:underline"
+              >
+                Support
+              </a>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
   </div>
