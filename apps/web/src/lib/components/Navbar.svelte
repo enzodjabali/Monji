@@ -1,6 +1,7 @@
-<!-- apps/web/src/lib/components/Navbar.svelte -->
 <script lang="ts">
-    // We expect user and environments passed in as props
+    import { scale } from 'svelte/transition';
+  
+    // Props
     export let user: {
       id: number;
       first_name: string;
@@ -16,19 +17,39 @@
       created_by: number;
     }[] = [];
   
-    // Dropdown toggle
+    // Local state
     let showDropdown = false;
   
-    // Function to toggle the dropdown menu
+    // References to elements for click-outside detection
+    let dropdownRef: HTMLElement;
+    let avatarRef: HTMLElement;
+  
+    // Toggle dropdown
     function toggleDropdown() {
       showDropdown = !showDropdown;
     }
   
-    // Derive the initial from the user’s first name
+    // If user clicks anywhere outside the avatar or dropdown, close it
+    function handleClickOutside(event: MouseEvent) {
+      if (!dropdownRef || !avatarRef) return;
+  
+      // If the click is NOT inside the dropdown or the avatar, close the dropdown
+      if (
+        !dropdownRef.contains(event.target as Node) &&
+        !avatarRef.contains(event.target as Node)
+      ) {
+        showDropdown = false;
+      }
+    }
+  
+    // Compute the user's initial (e.g. first letter of first name)
     $: userInitial = user?.first_name
       ? user.first_name[0].toUpperCase()
       : '?';
   </script>
+  
+  <!-- Listen for clicks on the window to detect outside clicks -->
+  <svelte:window on:click={handleClickOutside} />
   
   <nav class="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
     <!-- Left side: Logo + Environment select -->
@@ -51,20 +72,25 @@
       </div>
     </div>
   
-    <!-- Right side: Avatar & dropdown -->
+    <!-- Right side: Avatar & Dropdown -->
     <div class="relative">
       <!-- Avatar Circle -->
       <div
         class="bg-gray-700 text-white h-8 w-8 flex items-center justify-center rounded-full cursor-pointer"
         on:click={toggleDropdown}
+        bind:this={avatarRef}
       >
         {userInitial}
       </div>
   
-      <!-- Dropdown -->
+      <!-- Dropdown, shown if 'showDropdown' is true -->
       {#if showDropdown}
-        <div class="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded shadow-lg z-10">
-          <!-- User info section -->
+        <div
+          class="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded shadow-lg z-10"
+          transition:scale={{ duration: 150 }}
+          bind:this={dropdownRef}
+        >
+          <!-- User info -->
           <div class="px-4 py-2">
             <p class="font-semibold">
               {user?.first_name} {user?.last_name}
@@ -82,8 +108,8 @@
               </a>
             </li>
             <li>
+              <!-- Example: your logout could be a link or a form POST -->
               <form method="post" action="/logout">
-                <!-- Or a link if you do not need a POST -->
                 <button
                   type="submit"
                   class="w-full text-left px-4 py-2 hover:bg-gray-100"
