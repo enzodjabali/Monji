@@ -1,22 +1,12 @@
 <script lang="ts">
     import Navbar from '$lib/components/Navbar.svelte';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
-    import { onMount } from 'svelte';
+    import JsonEditor from '$lib/components/JsonEditor.svelte';
   
+    // Data provided by the server (via load function)
     export let data: {
-      user: {
-        id: number;
-        first_name: string;
-        last_name: string;
-        email: string;
-        role: string;
-      };
-      environments: {
-        id: number;
-        name: string;
-        connection_string: string;
-        created_by: number;
-      }[];
+      user: { id: number; first_name: string; last_name: string; email: string; role: string };
+      environments: Array<{ id: number; name: string; connection_string: string; created_by: number }>;
       document: Record<string, any>;
       database: string;
       collection: string;
@@ -26,34 +16,47 @@
       docID: string;
     };
   
+    // Initialize the editor content as a formatted JSON string.
     let documentContent: string = JSON.stringify(data.document, null, 2);
+  
     let errorMsg = '';
     let successMsg = '';
   
+    // Use FormData to submit the form (so it’s sent as form‑encoded data)
     async function handleSubmit(event: SubmitEvent) {
       event.preventDefault();
       const form = event.currentTarget as HTMLFormElement;
       const formData = new FormData(form);
+  
+      // Ensure the latest editor content is in the hidden field.
+      formData.set('document', documentContent);
+  
+      // Submit to the same URL (which calls the SvelteKit action)
       const response = await fetch(form.action, {
         method: form.method,
         body: formData
+        // Do not set Content-Type manually—let the browser set it.
       });
+  
       if (response.ok) {
         const result = await response.json();
         if (result.error) {
           errorMsg = result.error;
+          successMsg = '';
         } else {
-          successMsg = 'Document updated successfully';
+          successMsg = 'Document updated successfully!';
+          errorMsg = '';
         }
       } else {
         errorMsg = 'Failed to update document';
+        successMsg = '';
       }
     }
   </script>
   
+  <!-- Navbar and Breadcrumb remain unchanged -->
   <Navbar user={data.user} environments={data.environments} />
   
-  <!-- BREADCRUMB: environmentId, databaseName, collectionName => "Environments / Databases / Collections / Documents" -->
   <Breadcrumb
     environmentId={data.currentEnvironmentId}
     databaseName={data.currentDatabase}
@@ -73,13 +76,13 @@
         <p class="text-green-600">{successMsg}</p>
       {/if}
   
-      <!-- JSON Editor Form -->
+      <!-- The form uses the default SvelteKit action -->
       <form method="post" on:submit={handleSubmit} class="space-y-4">
-        <textarea
-          name="document"
-          class="w-full h-80 border border-gray-300 rounded p-2 font-mono text-sm"
-          bind:value={documentContent}
-        ></textarea>
+        <!-- The CodeMirror-based JSON editor -->
+        <JsonEditor bind:value={documentContent} />
+  
+        <!-- Hidden textarea to send the updated JSON to the action -->
+        <textarea name="document" class="hidden" bind:value={documentContent}></textarea>
   
         <div class="flex space-x-2">
           <button
