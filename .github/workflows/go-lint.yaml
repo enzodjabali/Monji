@@ -1,0 +1,51 @@
+name: Go Code Check
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize]
+    paths:
+      - '/apps/api/**'
+  push:
+    branches:
+      - main
+    paths:
+      - '/apps/api/**'
+
+jobs:
+  lint-test:
+    name: Lint & Test Go Code
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: List all files in the project
+      run: ls -R
+
+    - name: go mod tidy
+      run: |
+        cd apps/api
+        go mod tidy
+
+    - name: Run vet
+      run: |
+        cd backend
+        echo "Go environment path: $(go env GOPATH)"
+        echo "Go bin directory: $(go env GOPATH)/bin"
+        export PATH=$HOME/go/bin:$PATH
+        go vet ./...
+    
+    - name: Run tests
+      run: |
+        cd apps/api
+        go test -v ./...
+
+    - name: Run coverage
+      run: |
+        cd apps/api
+        go test -coverprofile=coverage.out ./...
+        go tool cover -func=coverage.out
+        go tool cover -html=coverage.out -o coverage.html
