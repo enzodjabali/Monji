@@ -15,8 +15,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// GetDatabases lists Mongo databases in the specified environment.
-// Only shows the databases to which the user has DB-level read or readAndWrite permissions.
 func GetDatabases(c *gin.Context) {
 	envIDStr := c.Param("id")
 	envID, err := strconv.Atoi(envIDStr)
@@ -24,6 +22,8 @@ func GetDatabases(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
+
+	// Load environment
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
@@ -33,12 +33,9 @@ func GetDatabases(c *gin.Context) {
 
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-
-	// Admin/superadmin can see all DBs.
 	isAdmin := utils.IsAdmin(currentUser)
 
-	// For normal users, at least "read" environment permission is needed
-	// even to attempt listing. If they lack environment read => block or return empty.
+	// If not admin/superadmin, check env read permission
 	if !isAdmin {
 		hasEnvRead, err := utils.HasEnvPermission(currentUser, envID, "read")
 		if err != nil {
@@ -46,9 +43,11 @@ func GetDatabases(c *gin.Context) {
 			return
 		}
 		if !hasEnvRead {
-			// Return empty list or 403.
-			// The original request says "if user does not have environment access, return empty array (200)."
-			c.JSON(http.StatusOK, gin.H{"databases": []string{}})
+			// Return empty list or 403, based on your preference
+			c.JSON(http.StatusOK, gin.H{
+				"Databases": []interface{}{},
+				"TotalSize": 0,
+			})
 			return
 		}
 	}
@@ -68,34 +67,40 @@ func GetDatabases(c *gin.Context) {
 		return
 	}
 
-	// If admin/superadmin => return the entire DB list
-	if isAdmin {
-		c.JSON(http.StatusOK, dbs)
-		return
-	}
+	var resultList []map[string]interface{}
+	var totalSize float64 // Keep it float64 to unify everything.
 
-	// Normal user => only see DBs they have at least read permission on.
-	allowedDBs := make([]bson.M, 0)
 	for _, dbInfo := range dbs.Databases {
-		dbName := dbInfo.Name
-
-		// Check DB-level permission "read"
-		hasDbRead, checkErr := utils.HasDBPermission(currentUser, envID, dbName, "read")
-		if checkErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": checkErr.Error()})
-			return
-		}
-		if hasDbRead {
-			allowedDBs = append(allowedDBs, bson.M{
-				"name":       dbName,
-				"sizeOnDisk": dbInfo.SizeOnDisk,
-				"empty":      dbInfo.Empty,
+		if isAdmin {
+			// Admin => include all
+			resultList = append(resultList, map[string]interface{}{
+				"Name":       dbInfo.Name,
+				"SizeOnDisk": dbInfo.SizeOnDisk,
+				"Empty":      dbInfo.Empty,
 			})
+			totalSize += float64(dbInfo.SizeOnDisk)
+		} else {
+			// Normal user => only if they have DB read
+			hasDbRead, err := utils.HasDBPermission(currentUser, envID, dbInfo.Name, "read")
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			if hasDbRead {
+				resultList = append(resultList, map[string]interface{}{
+					"Name":       dbInfo.Name,
+					"SizeOnDisk": dbInfo.SizeOnDisk,
+					"Empty":      dbInfo.Empty,
+				})
+				totalSize += float64(dbInfo.SizeOnDisk)
+			}
 		}
 	}
 
-	// Return only the DBs the user has read permission on.
-	c.JSON(http.StatusOK, gin.H{"databases": allowedDBs})
+	c.JSON(http.StatusOK, gin.H{
+		"Databases": resultList,
+		"TotalSize": totalSize,
+	})
 }
 
 // CreateDatabase creates a new Mongo database by creating an initial collection.
