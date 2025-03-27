@@ -6,16 +6,28 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson"
-
 	"monji/internal/database"
 	"monji/internal/models"
 	"monji/internal/utils"
+
+	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // CreateMongoUser creates a new MongoDB user on the target database.
 func CreateMongoUser(c *gin.Context) {
+	// 1) Safely retrieve the current user from context
+	currentUserRaw, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not in context"})
+		return
+	}
+	currentUser, ok := currentUserRaw.(models.User)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "User type assertion failed"})
+		return
+	}
+
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 
@@ -34,8 +46,6 @@ func CreateMongoUser(c *gin.Context) {
 	}
 
 	// For creating a MongoDB user, user must have "write" access on the DB
-	currentUserRaw, _ := c.Get("user")
-	currentUser := currentUserRaw.(models.User)
 	isAdmin := utils.IsAdmin(currentUser)
 	if !isAdmin {
 		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
@@ -67,7 +77,6 @@ func CreateMongoUser(c *gin.Context) {
 		return
 	}
 
-	// Prepare roles array for the createUser command.
 	var rolesArr []bson.M
 	for _, r := range req.Roles {
 		if r.Role == "" || r.Db == "" {
@@ -86,7 +95,6 @@ func CreateMongoUser(c *gin.Context) {
 	}
 	defer client.Disconnect(ctx)
 
-	// Run the createUser command on the target database.
 	command := bson.D{
 		{"createUser", req.Username},
 		{"pwd", req.Password},
@@ -102,6 +110,18 @@ func CreateMongoUser(c *gin.Context) {
 
 // ListMongoUsers lists all MongoDB users on the given database.
 func ListMongoUsers(c *gin.Context) {
+	// 1) Safely retrieve the current user from context
+	currentUserRaw, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not in context"})
+		return
+	}
+	currentUser, ok := currentUserRaw.(models.User)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "User type assertion failed"})
+		return
+	}
+
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 
@@ -119,9 +139,6 @@ func ListMongoUsers(c *gin.Context) {
 		return
 	}
 
-	// For listing the DB users, normal user needs "read" on the DB
-	currentUserRaw, _ := c.Get("user")
-	currentUser := currentUserRaw.(models.User)
 	isAdmin := utils.IsAdmin(currentUser)
 	if !isAdmin {
 		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
@@ -144,7 +161,6 @@ func ListMongoUsers(c *gin.Context) {
 	}
 	defer client.Disconnect(ctx)
 
-	// Use the usersInfo command to list users on that DB
 	command := bson.D{{"usersInfo", 1}}
 	var result bson.M
 	if err := client.Database(dbName).RunCommand(ctx, command).Decode(&result); err != nil {
@@ -156,6 +172,18 @@ func ListMongoUsers(c *gin.Context) {
 
 // GetMongoUser fetches details for a specific MongoDB user.
 func GetMongoUser(c *gin.Context) {
+	// 1) Safely retrieve the current user from context
+	currentUserRaw, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not in context"})
+		return
+	}
+	currentUser, ok := currentUserRaw.(models.User)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "User type assertion failed"})
+		return
+	}
+
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 	username := c.Param("username")
@@ -174,9 +202,6 @@ func GetMongoUser(c *gin.Context) {
 		return
 	}
 
-	// For reading a specific user, need "read" on DB
-	currentUserRaw, _ := c.Get("user")
-	currentUser := currentUserRaw.(models.User)
 	isAdmin := utils.IsAdmin(currentUser)
 	if !isAdmin {
 		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
@@ -199,7 +224,6 @@ func GetMongoUser(c *gin.Context) {
 	}
 	defer client.Disconnect(ctx)
 
-	// Use the usersInfo command to get details for the specific user.
 	command := bson.D{{"usersInfo", username}}
 	var result bson.M
 	if err := client.Database(dbName).RunCommand(ctx, command).Decode(&result); err != nil {
@@ -211,6 +235,18 @@ func GetMongoUser(c *gin.Context) {
 
 // EditMongoUser updates an existing MongoDB user's password and/or roles.
 func EditMongoUser(c *gin.Context) {
+	// 1) Safely retrieve the current user from context
+	currentUserRaw, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not in context"})
+		return
+	}
+	currentUser, ok := currentUserRaw.(models.User)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "User type assertion failed"})
+		return
+	}
+
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 	username := c.Param("username")
@@ -230,8 +266,6 @@ func EditMongoUser(c *gin.Context) {
 	}
 
 	// For editing a Mongo user => need "write" on DB
-	currentUserRaw, _ := c.Get("user")
-	currentUser := currentUserRaw.(models.User)
 	isAdmin := utils.IsAdmin(currentUser)
 	if !isAdmin {
 		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
@@ -287,7 +321,6 @@ func EditMongoUser(c *gin.Context) {
 		return
 	}
 
-	// Use the updateUser command to change the user's password and/or roles.
 	command := bson.D{{"updateUser", username}}
 	for _, e := range updateDoc {
 		command = append(command, e)
@@ -302,6 +335,18 @@ func EditMongoUser(c *gin.Context) {
 
 // DeleteMongoUser removes a MongoDB user from the given database.
 func DeleteMongoUser(c *gin.Context) {
+	// 1) Safely retrieve the current user from context
+	currentUserRaw, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not in context"})
+		return
+	}
+	currentUser, ok := currentUserRaw.(models.User)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "User type assertion failed"})
+		return
+	}
+
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 	username := c.Param("username")
@@ -320,9 +365,6 @@ func DeleteMongoUser(c *gin.Context) {
 		return
 	}
 
-	// For deleting a Mongo user => need "write" on DB
-	currentUserRaw, _ := c.Get("user")
-	currentUser := currentUserRaw.(models.User)
 	isAdmin := utils.IsAdmin(currentUser)
 	if !isAdmin {
 		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
@@ -345,7 +387,6 @@ func DeleteMongoUser(c *gin.Context) {
 	}
 	defer client.Disconnect(ctx)
 
-	// Run the dropUser command to remove the user.
 	command := bson.D{{"dropUser", username}}
 	var result bson.M
 	if err := client.Database(dbName).RunCommand(ctx, command).Decode(&result); err != nil {
