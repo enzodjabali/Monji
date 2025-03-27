@@ -15,6 +15,11 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
+// isAtlas is a helper that returns true if the connection string likely points to an Atlas environment.
+func isAtlas(connString string) bool {
+	return strings.Contains(connString, "mongodb.net")
+}
+
 // CreateMongoUser creates a new MongoDB user on the target database.
 func CreateMongoUser(c *gin.Context) {
 	currentUserRaw, exists := c.Get("user")
@@ -392,9 +397,4 @@ func DeleteMongoUser(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully", "result": result})
-}
-
-// isAtlas is a helper that returns true if the connection string likely points to an Atlas environment.
-func isAtlas(connString string) bool {
-	return strings.Contains(connString, "mongodb.net")
 }

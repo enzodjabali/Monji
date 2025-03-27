@@ -15,22 +15,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-func getDbPermissionString(user models.User, envID int, dbName string) string {
-	if utils.IsAdmin(user) {
-		return "readAndWrite"
-	}
-	row := database.DB.QueryRow(
-		`SELECT permission FROM user_db_permissions WHERE user_id = ? AND environment_id = ? AND db_name = ?`,
-		user.ID, envID, dbName,
-	)
-	var perm string
-	err := row.Scan(&perm)
-	if err != nil {
-		return "none"
-	}
-	return perm
-}
-
 // GetDatabases lists Mongo databases in the specified environment.
 // It decrypts the stored connection string before connecting.
 func GetDatabases(c *gin.Context) {
