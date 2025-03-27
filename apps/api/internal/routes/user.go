@@ -8,7 +8,7 @@ import (
 )
 
 // RegisterUserRoutes sets up the endpoints for user CRUD operations.
-// These endpoints are protected by Auth and Admin middleware.
+// These endpoints are protected by Auth and Admin middleware (only admin & superadmin).
 func RegisterUserRoutes(rg *gin.RouterGroup) {
 	userGroup := rg.Group("/users")
 	userGroup.Use(middleware.AuthMiddleware(), middleware.AdminMiddleware())

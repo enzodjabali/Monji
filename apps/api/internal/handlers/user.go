@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -24,6 +25,16 @@ func CreateUser(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if the calling user is admin or superadmin
+	callingUserRaw, _ := c.Get("user")
+	callingUser := callingUserRaw.(models.User)
+
+	// If caller is admin (NOT superadmin), then they cannot create a superadmin
+	if callingUser.Role == "admin" && req.Role == "superadmin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin cannot create superadmin users"})
 		return
 	}
 
@@ -85,6 +96,34 @@ func UpdateUser(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check the current user’s role
+	callingUserRaw, _ := c.Get("user")
+	callingUser := callingUserRaw.(models.User)
+
+	// We also need to check the role of the user we are updating:
+	var existingRole string
+	err = database.DB.QueryRow("SELECT role FROM users WHERE id = ?", id).Scan(&existingRole)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// If calling user is admin and the target is superadmin => forbidden
+	if callingUser.Role == "admin" && existingRole == "superadmin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Cannot edit superadmin user"})
+		return
+	}
+
+	// If calling user is admin and they are trying to set the user’s role to superadmin => forbidden
+	if callingUser.Role == "admin" && req.Role != nil && *req.Role == "superadmin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin cannot grant superadmin role"})
 		return
 	}
 
@@ -167,6 +206,29 @@ func DeleteUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
+
+	// Check the current user’s role
+	callingUserRaw, _ := c.Get("user")
+	callingUser := callingUserRaw.(models.User)
+
+	// Check the role of the user we’re deleting
+	var targetRole string
+	err = database.DB.QueryRow("SELECT role FROM users WHERE id = ?", id).Scan(&targetRole)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// If caller is admin and the target is superadmin => forbid
+	if callingUser.Role == "admin" && targetRole == "superadmin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Cannot delete superadmin user"})
+		return
+	}
+
 	res, err := database.DB.Exec("DELETE FROM users WHERE id = ?", id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -205,7 +267,8 @@ func ListUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"users": users})
 }
 
-// GetUser retrieves a single user by ID.
+// GetUser retrieves a single user by ID, and also returns their environment/db permissions.
+// Admin/superadmin only.
 func GetUser(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -224,17 +287,86 @@ func GetUser(c *gin.Context) {
 		}
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"user": user})
+
+	// Also fetch user permissions
+	perms, err := fetchUserPermissions(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user":        user,
+		"permissions": perms,
+	})
 }
 
-// joinUpdates is a helper to join SQL update fields.
-func joinUpdates(updates []string, sep string) string {
-	result := ""
-	for i, s := range updates {
-		if i > 0 {
-			result += sep
-		}
-		result += s
+// ======================== NEW PERMISSIONS FETCHING LOGIC ======================= //
+
+// userPermissions is the structure we return in "permissions"
+type userPermissions struct {
+	Environments []envPerm `json:"environments"`
+	Databases    []dbPerm  `json:"databases"`
+}
+
+type envPerm struct {
+	EnvironmentID   int    `json:"environment_id"`
+	EnvironmentName string `json:"environment_name"`
+	Permission      string `json:"permission"`
+}
+
+type dbPerm struct {
+	EnvironmentID   int    `json:"environment_id"`
+	EnvironmentName string `json:"environment_name"`
+	DBName          string `json:"db_name"`
+	Permission      string `json:"permission"`
+}
+
+// fetchUserPermissions returns the environment-level and database-level permissions
+// for the given user.
+func fetchUserPermissions(userID int) (*userPermissions, error) {
+	perms := &userPermissions{
+		Environments: []envPerm{},
+		Databases:    []dbPerm{},
 	}
-	return result
+
+	// 1) Environment-level
+	envRows, err := database.DB.Query(`
+		SELECT e.id, e.name, p.permission
+		  FROM user_env_permissions p
+		  JOIN environments e ON e.id = p.environment_id
+		 WHERE p.user_id = ?`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch environment perms: %w", err)
+	}
+	defer envRows.Close()
+
+	for envRows.Next() {
+		var ep envPerm
+		if err := envRows.Scan(&ep.EnvironmentID, &ep.EnvironmentName, &ep.Permission); err != nil {
+			return nil, err
+		}
+		perms.Environments = append(perms.Environments, ep)
+	}
+
+	// 2) Database-level
+	dbRows, err := database.DB.Query(`
+		SELECT e.id, e.name, p.db_name, p.permission
+		  FROM user_db_permissions p
+		  JOIN environments e ON e.id = p.environment_id
+		 WHERE p.user_id = ?`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch db perms: %w", err)
+	}
+	defer dbRows.Close()
+
+	for dbRows.Next() {
+		var dp dbPerm
+		if err := dbRows.Scan(&dp.EnvironmentID, &dp.EnvironmentName, &dp.DBName, &dp.Permission); err != nil {
+			return nil, err
+		}
+		perms.Databases = append(perms.Databases, dp)
+	}
+
+	return perms, nil
 }

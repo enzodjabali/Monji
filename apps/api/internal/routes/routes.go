@@ -10,18 +10,20 @@ func SetupRoutes(cfg *config.Config) *gin.Engine {
 	router := gin.Default()
 
 	// Public routes.
-	RegisterAuthRoutes(router)
+	RegisterAuthRoutes(router) // /login, etc.
 
-	// Protected routes.
+	// Protected routes group:
 	api := router.Group("/")
-	// Individual route groups add their own middleware as needed.
+
+	// We register each route set. Each set includes AuthMiddleware in its own file if needed.
 	RegisterEnvironmentRoutes(api)
 	RegisterDatabaseRoutes(api)
 	RegisterCollectionRoutes(api)
 	RegisterDocumentRoutes(api)
 	RegisterMongoUserRoutes(api)
+	RegisterUserRoutes(api)        // userGroup still has AdminMiddleware
+	RegisterPermissionsRoutes(api) // presumably also admin only
 	RegisterWhoAmIRoute(api)
-	RegisterUserRoutes(api)
 
 	return router
 }

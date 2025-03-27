@@ -2,6 +2,7 @@ package routes
 
 import (
 	"monji/internal/handlers"
+	"monji/internal/middleware"
 
 	"github.com/gin-gonic/gin"
 )
@@ -9,16 +10,13 @@ import (
 // RegisterMongoUserRoutes sets up endpoints for managing MongoDB database users.
 func RegisterMongoUserRoutes(rg *gin.RouterGroup) {
 	userGroup := rg.Group("/environments/:id/databases/:dbName/users")
-	{
-		// Create a new MongoDB user.
-		userGroup.POST("", handlers.CreateMongoUser)
-		// List all users for the database.
-		userGroup.GET("", handlers.ListMongoUsers)
-		// Get details of a specific user.
-		userGroup.GET("/:username", handlers.GetMongoUser)
-		// Update (edit) an existing user.
-		userGroup.PUT("/:username", handlers.EditMongoUser)
-		// Delete a user.
-		userGroup.DELETE("/:username", handlers.DeleteMongoUser)
-	}
+
+	// Make sure to use AuthMiddleware() so "user" is set in the context.
+	userGroup.Use(middleware.AuthMiddleware())
+
+	userGroup.POST("", handlers.CreateMongoUser)
+	userGroup.GET("", handlers.ListMongoUsers)
+	userGroup.GET("/:username", handlers.GetMongoUser)
+	userGroup.PUT("/:username", handlers.EditMongoUser)
+	userGroup.DELETE("/:username", handlers.DeleteMongoUser)
 }

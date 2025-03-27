@@ -7,17 +7,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// RegisterEnvironmentRoutes requires Auth + Admin for all environment endpoints.
+// RegisterEnvironmentRoutes requires only authentication, not admin role.
+// The in-handler logic checks if a user has the correct environment permission.
 func RegisterEnvironmentRoutes(rg *gin.RouterGroup) {
 	envGroup := rg.Group("/environments")
-	{
-		// Apply both AuthMiddleware and AdminMiddleware to the group:
-		envGroup.Use(middleware.AuthMiddleware(), middleware.AdminMiddleware())
+	// Only require authentication
+	envGroup.Use(middleware.AuthMiddleware())
 
-		envGroup.GET("", handlers.ListEnvironments)
-		envGroup.GET("/:id", handlers.GetEnvironment)
-		envGroup.POST("", handlers.CreateEnvironment)
-		envGroup.PUT("/:id", handlers.UpdateEnvironment)
-		envGroup.DELETE("/:id", handlers.DeleteEnvironment)
-	}
+	// Then let the handlers check read/write access
+	envGroup.GET("", handlers.ListEnvironments)
+	envGroup.GET("/:id", handlers.GetEnvironment)
+	envGroup.POST("", handlers.CreateEnvironment)
+	envGroup.PUT("/:id", handlers.UpdateEnvironment)
+	envGroup.DELETE("/:id", handlers.DeleteEnvironment)
 }

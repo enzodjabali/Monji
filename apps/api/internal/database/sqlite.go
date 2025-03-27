@@ -48,6 +48,37 @@ func InitSQLite(path string) {
 		log.Fatalf("Failed to create environments table: %v", err)
 	}
 
+	// Create user_env_permissions table:
+	createUserEnvPerms := `
+	CREATE TABLE IF NOT EXISTS user_env_permissions (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL,
+		environment_id INTEGER NOT NULL,
+		permission TEXT NOT NULL, -- "none", "readOnly", "readAndWrite"
+		UNIQUE (user_id, environment_id)
+	);
+	`
+	_, err = DB.Exec(createUserEnvPerms)
+	if err != nil {
+		log.Fatalf("Failed to create user_env_permissions table: %v", err)
+	}
+
+	// Create user_db_permissions table:
+	createUserDBPerms := `
+	CREATE TABLE IF NOT EXISTS user_db_permissions (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL,
+		environment_id INTEGER NOT NULL,
+		db_name TEXT NOT NULL,
+		permission TEXT NOT NULL, -- "none", "readOnly", "readAndWrite"
+		UNIQUE (user_id, environment_id, db_name)
+	);
+	`
+	_, err = DB.Exec(createUserDBPerms)
+	if err != nil {
+		log.Fatalf("Failed to create user_db_permissions table: %v", err)
+	}
+
 	// Insert default admin user if none exist.
 	var count int
 	err = DB.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
