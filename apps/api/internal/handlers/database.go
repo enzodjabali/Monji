@@ -15,6 +15,25 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
+// getDbPermissionString returns the DB-level permission for the given user.
+// admin/superadmin => "readAndWrite". Otherwise, check user_db_permissions for "readOnly"/"readAndWrite"/none.
+func getDbPermissionString(user models.User, envID int, dbName string) string {
+	if utils.IsAdmin(user) {
+		return "readAndWrite"
+	}
+	row := database.DB.QueryRow(
+		`SELECT permission FROM user_db_permissions WHERE user_id = ? AND environment_id = ? AND db_name = ?`,
+		user.ID, envID, dbName,
+	)
+	var perm string
+	err := row.Scan(&perm)
+	if err != nil {
+		return "none"
+	}
+	return perm
+}
+
+// GetDatabases lists Mongo databases in the specified environment, returning "myPermission" for each database.
 func GetDatabases(c *gin.Context) {
 	envIDStr := c.Param("id")
 	envID, err := strconv.Atoi(envIDStr)
@@ -22,8 +41,6 @@ func GetDatabases(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
-
-	// Load environment
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
@@ -35,7 +52,7 @@ func GetDatabases(c *gin.Context) {
 	currentUser := currentUserRaw.(models.User)
 	isAdmin := utils.IsAdmin(currentUser)
 
-	// If not admin/superadmin, check env read permission
+	// If normal user => must have env read to see anything
 	if !isAdmin {
 		hasEnvRead, err := utils.HasEnvPermission(currentUser, envID, "read")
 		if err != nil {
@@ -43,7 +60,6 @@ func GetDatabases(c *gin.Context) {
 			return
 		}
 		if !hasEnvRead {
-			// Return empty list or 403, based on your preference
 			c.JSON(http.StatusOK, gin.H{
 				"Databases": []interface{}{},
 				"TotalSize": 0,
@@ -68,29 +84,33 @@ func GetDatabases(c *gin.Context) {
 	}
 
 	var resultList []map[string]interface{}
-	var totalSize float64 // Keep it float64 to unify everything.
+	var totalSize float64
 
 	for _, dbInfo := range dbs.Databases {
 		if isAdmin {
-			// Admin => include all
+			// admin => always readAndWrite
 			resultList = append(resultList, map[string]interface{}{
-				"Name":       dbInfo.Name,
-				"SizeOnDisk": dbInfo.SizeOnDisk,
-				"Empty":      dbInfo.Empty,
+				"Name":         dbInfo.Name,
+				"SizeOnDisk":   dbInfo.SizeOnDisk,
+				"Empty":        dbInfo.Empty,
+				"myPermission": "readAndWrite",
 			})
 			totalSize += float64(dbInfo.SizeOnDisk)
 		} else {
-			// Normal user => only if they have DB read
+			// normal user => check DB-level "read"
 			hasDbRead, err := utils.HasDBPermission(currentUser, envID, dbInfo.Name, "read")
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
 			if hasDbRead {
+				// find the exact permission string
+				perm := getDbPermissionString(currentUser, envID, dbInfo.Name)
 				resultList = append(resultList, map[string]interface{}{
-					"Name":       dbInfo.Name,
-					"SizeOnDisk": dbInfo.SizeOnDisk,
-					"Empty":      dbInfo.Empty,
+					"Name":         dbInfo.Name,
+					"SizeOnDisk":   dbInfo.SizeOnDisk,
+					"Empty":        dbInfo.Empty,
+					"myPermission": perm, // "readOnly" or "readAndWrite"
 				})
 				totalSize += float64(dbInfo.SizeOnDisk)
 			}
@@ -103,7 +123,7 @@ func GetDatabases(c *gin.Context) {
 	})
 }
 
-// CreateDatabase creates a new Mongo database by creating an initial collection.
+// CreateDatabase (unchanged, no "myPermission" is needed for creation).
 func CreateDatabase(c *gin.Context) {
 	envIDStr := c.Param("id")
 	envID, err := strconv.Atoi(envIDStr)
@@ -119,7 +139,6 @@ func CreateDatabase(c *gin.Context) {
 		return
 	}
 
-	// check "write" environment permission
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
 	hasEnvWrite, err := utils.HasEnvPermission(currentUser, envID, "write")
@@ -321,8 +340,7 @@ func DeleteDatabase(c *gin.Context) {
 	})
 }
 
-// GetDatabaseDetails returns detailed information about a specific MongoDB database.
-// It includes database statistics and a list of collections.
+// GetDatabaseDetails returns detailed info + "myPermission" at the top level.
 func GetDatabaseDetails(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
@@ -342,27 +360,24 @@ func GetDatabaseDetails(c *gin.Context) {
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
 
-	// Must have environment read
+	// Must have env read
 	hasEnvRead, err := utils.HasEnvPermission(currentUser, envID, "read")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	if !hasEnvRead {
-		// Return 200 with some empty info or 403, up to your design
-		// We'll return 403 here
 		c.JSON(http.StatusForbidden, gin.H{"error": "No permission on environment"})
 		return
 	}
 
-	// Must have DB-level read
+	// Must have DB read
 	hasDbRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	if !hasDbRead {
-		// Return 403 or empty result
 		c.JSON(http.StatusForbidden, gin.H{"error": "No permission on database"})
 		return
 	}
@@ -376,23 +391,24 @@ func GetDatabaseDetails(c *gin.Context) {
 	}
 	defer client.Disconnect(ctx)
 
-	// Retrieve detailed database statistics.
 	var stats bson.M
 	if err := client.Database(dbName).RunCommand(ctx, bson.D{{Key: "dbStats", Value: 1}}).Decode(&stats); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get database stats: " + err.Error()})
 		return
 	}
 
-	// List all collections in the database.
 	collNames, err := client.Database(dbName).ListCollectionNames(ctx, bson.D{})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list collections: " + err.Error()})
 		return
 	}
 
+	myPerm := getDbPermissionString(currentUser, envID, dbName)
+
 	c.JSON(http.StatusOK, gin.H{
-		"database":    dbName,
-		"stats":       stats,
-		"collections": collNames,
+		"database":     dbName,
+		"stats":        stats,
+		"collections":  collNames,
+		"myPermission": myPerm, // e.g. "readOnly", "readAndWrite", or "none"
 	})
 }

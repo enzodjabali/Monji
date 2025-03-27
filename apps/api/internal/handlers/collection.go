@@ -15,7 +15,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// GetCollections lists collections (with basic stats) in a database.
+// GetCollections lists collections (with basic stats) in a database, as in your original code.
+// Now also returns "myPermission" at the top level – nothing else changed.
 func GetCollections(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
@@ -37,6 +38,7 @@ func GetCollections(c *gin.Context) {
 	// Check read permission on this DB
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
+
 	isAdmin := utils.IsAdmin(currentUser)
 	if !isAdmin {
 		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
@@ -59,15 +61,18 @@ func GetCollections(c *gin.Context) {
 	}
 	defer client.Disconnect(ctx)
 
+	// List all collection names
 	collNames, err := client.Database(dbName).ListCollectionNames(ctx, bson.D{})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list collections: " + err.Error()})
 		return
 	}
 
+	// Build an array with the same stats as before: count, size, storageSize, totalIndexSize, etc.
 	var collections []gin.H
 	for _, coll := range collNames {
 		var stats bson.M
+		// For each collection, run collStats
 		if err := client.Database(dbName).RunCommand(ctx, bson.D{{Key: "collStats", Value: coll}}).Decode(&stats); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to get stats for %s: %v", coll, err)})
 			return
@@ -81,9 +86,91 @@ func GetCollections(c *gin.Context) {
 		})
 	}
 
+	// The DB-level permission is the same for all collections in this DB
+	myPerm := "readAndWrite"
+	if !isAdmin {
+		myPerm = getDbPermissionString(currentUser, envID, dbName)
+	}
+
+	// Return the same structure as before, plus "myPermission" at top level
 	c.JSON(http.StatusOK, gin.H{
-		"database":    dbName,
-		"collections": collections,
+		"database":     dbName,
+		"collections":  collections, // same shape as your original code
+		"myPermission": myPerm,
+	})
+}
+
+// GetCollectionDetails retrieves detailed info about a collection, including "myPermission" at top-level.
+func GetCollectionDetails(c *gin.Context) {
+	envIDStr := c.Param("id")
+	dbName := c.Param("dbName")
+	oldCollName := c.Param("collName")
+	envID, err := strconv.Atoi(envIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
+		return
+	}
+	var env models.Environment
+	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
+	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+		return
+	}
+
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+	isAdmin := utils.IsAdmin(currentUser)
+	if !isAdmin {
+		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasDBRead {
+			c.JSON(http.StatusForbidden, gin.H{"error": "No permission to read this collection"})
+			return
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	client, err := database.ConnectMongo(ctx, env.ConnectionString)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB"})
+		return
+	}
+	defer client.Disconnect(ctx)
+
+	var stats bson.M
+	if err := client.Database(dbName).RunCommand(ctx, bson.D{{Key: "collStats", Value: oldCollName}}).Decode(&stats); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to get collection stats: %v", err)})
+		return
+	}
+
+	cursor, err := client.Database(dbName).Collection(oldCollName).Indexes().List(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list indexes: " + err.Error()})
+		return
+	}
+	var indexes []bson.M
+	for cursor.Next(ctx) {
+		var idx bson.M
+		if err := cursor.Decode(&idx); err == nil {
+			indexes = append(indexes, idx)
+		}
+	}
+
+	myPerm := "readAndWrite"
+	if !isAdmin {
+		myPerm = getDbPermissionString(currentUser, envID, dbName)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"database":     dbName,
+		"collection":   oldCollName,
+		"stats":        stats,
+		"indexes":      indexes,
+		"myPermission": myPerm,
 	})
 }
 
@@ -297,77 +384,5 @@ func DeleteCollection(c *gin.Context) {
 		"message":    "Collection deleted successfully",
 		"database":   dbName,
 		"collection": collName,
-	})
-}
-
-// GetCollectionDetails retrieves detailed info about a collection.
-func GetCollectionDetails(c *gin.Context) {
-	envIDStr := c.Param("id")
-	dbName := c.Param("dbName")
-	collName := c.Param("collName")
-
-	envID, err := strconv.Atoi(envIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
-		return
-	}
-
-	// Load environment
-	var env models.Environment
-	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
-	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
-		return
-	}
-
-	// Check read permission
-	currentUserRaw, _ := c.Get("user")
-	currentUser := currentUserRaw.(models.User)
-	isAdmin := utils.IsAdmin(currentUser)
-	if !isAdmin {
-		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		if !hasDBRead {
-			c.JSON(http.StatusForbidden, gin.H{"error": "No permission to read this collection"})
-			return
-		}
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	client, err := database.ConnectMongo(ctx, env.ConnectionString)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB: " + err.Error()})
-		return
-	}
-	defer client.Disconnect(ctx)
-
-	var stats bson.M
-	if err := client.Database(dbName).RunCommand(ctx, bson.D{{Key: "collStats", Value: collName}}).Decode(&stats); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get collection stats: " + err.Error()})
-		return
-	}
-
-	cursor, err := client.Database(dbName).Collection(collName).Indexes().List(ctx)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list indexes: " + err.Error()})
-		return
-	}
-	var indexes []bson.M
-	for cursor.Next(ctx) {
-		var idx bson.M
-		if err := cursor.Decode(&idx); err == nil {
-			indexes = append(indexes, idx)
-		}
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"database":   dbName,
-		"collection": collName,
-		"stats":      stats,
-		"indexes":    indexes,
 	})
 }

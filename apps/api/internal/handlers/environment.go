@@ -12,9 +12,29 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// getEnvPermissionString returns the environment-level permission for the given user.
+// If user is admin/superadmin => "readAndWrite".
+// Otherwise, we look in user_env_permissions for "readOnly" / "readAndWrite" / no row => "none".
+func getEnvPermissionString(user models.User, envID int) string {
+	if utils.IsAdmin(user) {
+		return "readAndWrite"
+	}
+
+	row := database.DB.QueryRow(
+		`SELECT permission FROM user_env_permissions WHERE user_id = ? AND environment_id = ?`,
+		user.ID, envID,
+	)
+	var perm string
+	err := row.Scan(&perm)
+	if err != nil {
+		// if no row or error => treat as "none"
+		return "none"
+	}
+	return perm
+}
+
 // CreateEnvironment creates a new MongoDB environment configuration.
 func CreateEnvironment(c *gin.Context) {
-	// if the caller is not admin or superadmin, block
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
 	if !utils.IsAdmin(currentUser) {
@@ -35,15 +55,12 @@ func CreateEnvironment(c *gin.Context) {
 		return
 	}
 
-	// Get current user from context.
-	usr := currentUser
-
 	stmt, err := database.DB.Prepare(`INSERT INTO environments (name, connection_string, created_by) VALUES (?,?,?)`)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to prepare statement"})
 		return
 	}
-	res, err := stmt.Exec(req.Name, req.ConnectionString, usr.ID)
+	res, err := stmt.Exec(req.Name, req.ConnectionString, currentUser.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -58,19 +75,21 @@ func CreateEnvironment(c *gin.Context) {
 		ID:               int(id),
 		Name:             req.Name,
 		ConnectionString: req.ConnectionString,
-		CreatedBy:        usr.ID,
+		CreatedBy:        currentUser.ID,
 	}
 	c.JSON(http.StatusOK, gin.H{"environment": env})
 }
 
-// ListEnvironments returns all environment configurations for admin/superadmin, or
-// only the permitted environments for a normal user.
+// ListEnvironments returns all environment configurations for admin/superadmin,
+// or only the permitted environments for a normal user.
+//
+// Now also returns "myPermission" for each environment object.
 func ListEnvironments(c *gin.Context) {
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
 
-	// if admin/superadmin => return all
 	if utils.IsAdmin(currentUser) {
+		// admin => list all environments
 		rows, err := database.DB.Query(`SELECT id, name, connection_string, created_by FROM environments`)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -78,7 +97,7 @@ func ListEnvironments(c *gin.Context) {
 		}
 		defer rows.Close()
 
-		var envs []models.Environment
+		var envs []gin.H
 		for rows.Next() {
 			var e models.Environment
 			if err := rows.Scan(&e.ID, &e.Name, &e.ConnectionString, &e.CreatedBy); err != nil {
@@ -88,18 +107,26 @@ func ListEnvironments(c *gin.Context) {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
-			envs = append(envs, e)
+			// admin => "readAndWrite"
+			res := gin.H{
+				"id":                e.ID,
+				"name":              e.Name,
+				"connection_string": e.ConnectionString,
+				"created_by":        e.CreatedBy,
+				"myPermission":      "readAndWrite",
+			}
+			envs = append(envs, res)
 		}
 		c.JSON(http.StatusOK, gin.H{"environments": envs})
 		return
 	}
 
-	// otherwise, normal user => show only the envs they have read permission for
+	// normal user => show only envs they have read permission for
 	query := `
-	SELECT e.id, e.name, e.connection_string, e.created_by
+	SELECT e.id, e.name, e.connection_string, e.created_by,
+	       p.permission
 	  FROM environments e
-	  JOIN user_env_permissions p
-	    ON e.id = p.environment_id
+	  JOIN user_env_permissions p ON e.id = p.environment_id
 	 WHERE p.user_id = ?
 	   AND (p.permission = 'readOnly' OR p.permission = 'readAndWrite');
 	`
@@ -110,19 +137,30 @@ func ListEnvironments(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	var envs []models.Environment
+	var envs []gin.H
 	for rows.Next() {
-		var e models.Environment
-		if err := rows.Scan(&e.ID, &e.Name, &e.ConnectionString, &e.CreatedBy); err != nil {
+		var (
+			e    models.Environment
+			perm string
+		)
+		if err := rows.Scan(&e.ID, &e.Name, &e.ConnectionString, &e.CreatedBy, &perm); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		envs = append(envs, e)
+		res := gin.H{
+			"id":                e.ID,
+			"name":              e.Name,
+			"connection_string": e.ConnectionString,
+			"created_by":        e.CreatedBy,
+			"myPermission":      perm,
+		}
+		envs = append(envs, res)
 	}
 	c.JSON(http.StatusOK, gin.H{"environments": envs})
 }
 
-// GetEnvironment fetches details for a single environment, respecting permissions.
+// GetEnvironment fetches details for a single environment, respecting permissions,
+// and adds "myPermission" at the top level.
 func GetEnvironment(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -134,42 +172,35 @@ func GetEnvironment(c *gin.Context) {
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
 
-	// if user is admin/superadmin => can retrieve directly
-	if utils.IsAdmin(currentUser) {
-		var env models.Environment
-		row := database.DB.QueryRow("SELECT id, name, connection_string, created_by FROM environments WHERE id = ?", id)
-		if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"environment": env})
-		return
-	}
-
-	// normal user => check permission
-	hasPerm, err := utils.HasEnvPermission(currentUser, id, "read")
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	if !hasPerm {
-		c.JSON(http.StatusForbidden, gin.H{"error": "No permission to read this environment"})
-		return
-	}
-
-	// now retrieve
 	var env models.Environment
 	row := database.DB.QueryRow("SELECT id, name, connection_string, created_by FROM environments WHERE id = ?", id)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"environment": env})
+
+	// compute myPermission
+	myPerm := getEnvPermissionString(currentUser, env.ID)
+	if myPerm == "none" {
+		// user has no read => either 403 or return a restricted response.
+		c.JSON(http.StatusForbidden, gin.H{"error": "No permission to read this environment"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"environment": gin.H{
+			"id":                env.ID,
+			"name":              env.Name,
+			"connection_string": env.ConnectionString,
+			"created_by":        env.CreatedBy,
+		},
+		"myPermission": myPerm,
+	})
 }
 
-// UpdateEnvironment updates an environment configuration. Only admin/superadmin or
-// users with readAndWrite permission on this environment can do so.
+// UpdateEnvironment updates an environment configuration. (Unchanged from your original, no "myPermission" needed.)
 func UpdateEnvironment(c *gin.Context) {
+	// ... unchanged, no need to show "myPermission" for update
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -180,7 +211,6 @@ func UpdateEnvironment(c *gin.Context) {
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
 
-	// Check permission
 	hasWrite, err := utils.HasEnvPermission(currentUser, id, "write")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -243,9 +273,9 @@ func UpdateEnvironment(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"environment": env})
 }
 
-// DeleteEnvironment removes an environment configuration. Only admin/superadmin or
-// user with readAndWrite on it can do so.
+// DeleteEnvironment removes an environment configuration. (Unchanged, no "myPermission" needed.)
 func DeleteEnvironment(c *gin.Context) {
+	// ... unchanged from your original
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {

@@ -15,7 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// GetDocuments retrieves all documents from a collection.
+// GetDocuments retrieves all documents from a collection and attaches "myPermission" to each doc.
 func GetDocuments(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
@@ -26,8 +26,6 @@ func GetDocuments(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
-
-	// Load environment
 	var env models.Environment
 	row := database.DB.QueryRow(
 		`SELECT id, name, connection_string, created_by
@@ -38,7 +36,6 @@ func GetDocuments(c *gin.Context) {
 		return
 	}
 
-	// Check read permission on DB
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
 	isAdmin := utils.IsAdmin(currentUser)
@@ -56,7 +53,6 @@ func GetDocuments(c *gin.Context) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-
 	client, err := database.ConnectMongo(ctx, env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB"})
@@ -77,6 +73,16 @@ func GetDocuments(c *gin.Context) {
 		return
 	}
 
+	myPerm := "readAndWrite"
+	if !isAdmin {
+		myPerm = getDbPermissionString(currentUser, envID, dbName)
+	}
+
+	// Insert "myPermission" into each doc
+	for i := range documents {
+		documents[i]["myPermission"] = myPerm
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"database":   dbName,
 		"collection": collName,
@@ -84,7 +90,7 @@ func GetDocuments(c *gin.Context) {
 	})
 }
 
-// GetDocument fetches a single document from a collection by its _id (hex or string).
+// GetDocument fetches a single document, adding "myPermission" inside the doc.
 func GetDocument(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
@@ -96,8 +102,6 @@ func GetDocument(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
-
-	// Load environment
 	var env models.Environment
 	row := database.DB.QueryRow(
 		`SELECT id, name, connection_string, created_by
@@ -112,7 +116,6 @@ func GetDocument(c *gin.Context) {
 	currentUser := currentUserRaw.(models.User)
 	isAdmin := utils.IsAdmin(currentUser)
 	if !isAdmin {
-		// Check read
 		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -124,20 +127,17 @@ func GetDocument(c *gin.Context) {
 		}
 	}
 
-	// Try converting docIDStr to an ObjectID. If it fails, treat it as a string _id.
+	// parse the docID
 	var filter bson.M
 	objID, err := primitive.ObjectIDFromHex(docIDStr)
 	if err != nil {
-		// Not a valid hex => treat as string
 		filter = bson.M{"_id": docIDStr}
 	} else {
-		// Valid hex => treat as ObjectID
 		filter = bson.M{"_id": objID}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-
 	client, err := database.ConnectMongo(ctx, env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB"})
@@ -150,6 +150,14 @@ func GetDocument(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Document not found"})
 		return
 	}
+
+	myPerm := "readAndWrite"
+	if !isAdmin {
+		myPerm = getDbPermissionString(currentUser, envID, dbName)
+	}
+
+	// Insert "myPermission" into the doc
+	result["myPermission"] = myPerm
 
 	c.JSON(http.StatusOK, gin.H{
 		"database":   dbName,
