@@ -7,17 +7,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// RegisterDocumentRoutes ensures both Auth and Admin for all document endpoints.
 func RegisterDocumentRoutes(rg *gin.RouterGroup) {
 	docGroup := rg.Group("/environments/:id/databases/:dbName/collections/:collName/documents")
-	{
-		docGroup.Use(middleware.AuthMiddleware(), middleware.AdminMiddleware())
+	docGroup.Use(middleware.AuthMiddleware())
 
-		// Existing routes
-		docGroup.GET("", handlers.GetDocuments)
-		docGroup.POST("", handlers.CreateDocument)
-		docGroup.PUT("/:docID", handlers.UpdateDocument)
-		docGroup.DELETE("/:docID", handlers.DeleteDocument)
-		docGroup.GET("/:docID", handlers.GetDocument)
-	}
+	// The handler code checks read/write permission on the DB
+	docGroup.GET("", handlers.GetDocuments)
+	docGroup.POST("", handlers.CreateDocument)
+	docGroup.PUT("/:docID", handlers.UpdateDocument)
+	docGroup.DELETE("/:docID", handlers.DeleteDocument)
+	docGroup.GET("/:docID", handlers.GetDocument)
 }

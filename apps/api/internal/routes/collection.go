@@ -7,16 +7,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// RegisterCollectionRoutes ensures both Auth and Admin for all collection endpoints.
+// RegisterCollectionRoutes ensures we only do Auth here.
+// The collection handlers check if user is admin or has read/write on the DB.
 func RegisterCollectionRoutes(rg *gin.RouterGroup) {
 	collGroup := rg.Group("/environments/:id/databases/:dbName/collections")
-	{
-		collGroup.Use(middleware.AuthMiddleware(), middleware.AdminMiddleware())
+	collGroup.Use(middleware.AuthMiddleware())
 
-		collGroup.GET("", handlers.GetCollections)
-		collGroup.GET("/:collName", handlers.GetCollectionDetails)
-		collGroup.POST("", handlers.CreateCollection)
-		collGroup.PUT("/:collName", handlers.EditCollection)
-		collGroup.DELETE("/:collName", handlers.DeleteCollection)
-	}
+	collGroup.GET("", handlers.GetCollections)
+	collGroup.GET("/:collName", handlers.GetCollectionDetails)
+	collGroup.POST("", handlers.CreateCollection)
+	collGroup.PUT("/:collName", handlers.EditCollection)
+	collGroup.DELETE("/:collName", handlers.DeleteCollection)
 }
