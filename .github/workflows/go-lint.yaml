@@ -42,7 +42,7 @@ jobs:
 
     - name: Run vet
       run: |
-        cd backend
+        cd apps/api
         echo "Go environment path: $(go env GOPATH)"
         echo "Go bin directory: $(go env GOPATH)/bin"
         export PATH=$HOME/go/bin:$PATH
