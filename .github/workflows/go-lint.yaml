@@ -12,6 +12,16 @@ on:
       - main
     paths:
       - '/apps/api/**'
+  workflow_dispatch:
+    inputs:
+      run:
+        description: 'Run the workflow'
+        required: true
+        default: 'yes'
+        type: choice
+        options:
+          - yes
+          - no
 
 jobs:
   lint-test:
