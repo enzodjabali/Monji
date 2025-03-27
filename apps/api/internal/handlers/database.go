@@ -9,12 +9,14 @@ import (
 
 	"monji/internal/database"
 	"monji/internal/models"
+	"monji/internal/utils"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
 // GetDatabases lists Mongo databases in the specified environment.
+// Only shows the databases to which the user has DB-level read or readAndWrite permissions.
 func GetDatabases(c *gin.Context) {
 	envIDStr := c.Param("id")
 	envID, err := strconv.Atoi(envIDStr)
@@ -27,6 +29,28 @@ func GetDatabases(c *gin.Context) {
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
+	}
+
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+
+	// Admin/superadmin can see all DBs.
+	isAdmin := utils.IsAdmin(currentUser)
+
+	// For normal users, at least "read" environment permission is needed
+	// even to attempt listing. If they lack environment read => block or return empty.
+	if !isAdmin {
+		hasEnvRead, err := utils.HasEnvPermission(currentUser, envID, "read")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasEnvRead {
+			// Return empty list or 403.
+			// The original request says "if user does not have environment access, return empty array (200)."
+			c.JSON(http.StatusOK, gin.H{"databases": []string{}})
+			return
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -43,7 +67,35 @@ func GetDatabases(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, dbs)
+
+	// If admin/superadmin => return the entire DB list
+	if isAdmin {
+		c.JSON(http.StatusOK, dbs)
+		return
+	}
+
+	// Normal user => only see DBs they have at least read permission on.
+	allowedDBs := make([]bson.M, 0)
+	for _, dbInfo := range dbs.Databases {
+		dbName := dbInfo.Name
+
+		// Check DB-level permission "read"
+		hasDbRead, checkErr := utils.HasDBPermission(currentUser, envID, dbName, "read")
+		if checkErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": checkErr.Error()})
+			return
+		}
+		if hasDbRead {
+			allowedDBs = append(allowedDBs, bson.M{
+				"name":       dbName,
+				"sizeOnDisk": dbInfo.SizeOnDisk,
+				"empty":      dbInfo.Empty,
+			})
+		}
+	}
+
+	// Return only the DBs the user has read permission on.
+	c.JSON(http.StatusOK, gin.H{"databases": allowedDBs})
 }
 
 // CreateDatabase creates a new Mongo database by creating an initial collection.
@@ -59,6 +111,19 @@ func CreateDatabase(c *gin.Context) {
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+		return
+	}
+
+	// check "write" environment permission
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+	hasEnvWrite, err := utils.HasEnvPermission(currentUser, envID, "write")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !hasEnvWrite {
+		c.JSON(http.StatusForbidden, gin.H{"error": "No permission on this environment"})
 		return
 	}
 
@@ -89,8 +154,8 @@ func CreateDatabase(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list databases: " + err.Error()})
 		return
 	}
-	for _, dbName := range dbList {
-		if dbName == req.DbName {
+	for _, existingName := range dbList {
+		if existingName == req.DbName {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Database already exists"})
 			return
 		}
@@ -121,6 +186,19 @@ func EditDatabase(c *gin.Context) {
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+		return
+	}
+
+	// Check "write" environment permission
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+	hasEnvWrite, err := utils.HasEnvPermission(currentUser, envID, "write")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !hasEnvWrite {
+		c.JSON(http.StatusForbidden, gin.H{"error": "No permission on environment"})
 		return
 	}
 
@@ -205,6 +283,19 @@ func DeleteDatabase(c *gin.Context) {
 		return
 	}
 
+	// check "write" environment permission
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+	hasEnvWrite, err := utils.HasEnvPermission(currentUser, envID, "write")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !hasEnvWrite {
+		c.JSON(http.StatusForbidden, gin.H{"error": "No permission on environment"})
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	client, err := database.ConnectMongo(ctx, env.ConnectionString)
@@ -240,6 +331,34 @@ func GetDatabaseDetails(c *gin.Context) {
 		`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+		return
+	}
+
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+
+	// Must have environment read
+	hasEnvRead, err := utils.HasEnvPermission(currentUser, envID, "read")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !hasEnvRead {
+		// Return 200 with some empty info or 403, up to your design
+		// We'll return 403 here
+		c.JSON(http.StatusForbidden, gin.H{"error": "No permission on environment"})
+		return
+	}
+
+	// Must have DB-level read
+	hasDbRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !hasDbRead {
+		// Return 403 or empty result
+		c.JSON(http.StatusForbidden, gin.H{"error": "No permission on database"})
 		return
 	}
 
