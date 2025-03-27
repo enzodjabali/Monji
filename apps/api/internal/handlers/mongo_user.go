@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"monji/internal/database"
@@ -37,6 +38,7 @@ func CreateMongoUser(c *gin.Context) {
 		return
 	}
 
+	// Load environment
 	var env models.Environment
 	row := database.DB.QueryRow(
 		`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
@@ -45,7 +47,12 @@ func CreateMongoUser(c *gin.Context) {
 		return
 	}
 
-	// For creating a MongoDB user, user must have "write" access on the DB
+	// ---> If environment is an Atlas environment => bail out
+	if isAtlas(env.ConnectionString) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Managing MongoDB users is not available on Atlas environments"})
+		return
+	}
+
 	isAdmin := utils.IsAdmin(currentUser)
 	if !isAdmin {
 		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
@@ -62,8 +69,7 @@ func CreateMongoUser(c *gin.Context) {
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
-		// Roles is an array of roles with the role name and target database.
-		Roles []struct {
+		Roles    []struct {
 			Role string `json:"role"`
 			Db   string `json:"db"`
 		} `json:"roles"`
@@ -110,7 +116,6 @@ func CreateMongoUser(c *gin.Context) {
 
 // ListMongoUsers lists all MongoDB users on the given database.
 func ListMongoUsers(c *gin.Context) {
-	// 1) Safely retrieve the current user from context
 	currentUserRaw, exists := c.Get("user")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not in context"})
@@ -136,6 +141,12 @@ func ListMongoUsers(c *gin.Context) {
 		`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+		return
+	}
+
+	// ---> If environment is an Atlas environment => bail out
+	if isAtlas(env.ConnectionString) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Managing MongoDB users is not available on Atlas environments"})
 		return
 	}
 
@@ -172,7 +183,6 @@ func ListMongoUsers(c *gin.Context) {
 
 // GetMongoUser fetches details for a specific MongoDB user.
 func GetMongoUser(c *gin.Context) {
-	// 1) Safely retrieve the current user from context
 	currentUserRaw, exists := c.Get("user")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not in context"})
@@ -199,6 +209,12 @@ func GetMongoUser(c *gin.Context) {
 		`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+		return
+	}
+
+	// ---> If environment is an Atlas environment => bail out
+	if isAtlas(env.ConnectionString) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Managing MongoDB users is not available on Atlas environments"})
 		return
 	}
 
@@ -235,7 +251,6 @@ func GetMongoUser(c *gin.Context) {
 
 // EditMongoUser updates an existing MongoDB user's password and/or roles.
 func EditMongoUser(c *gin.Context) {
-	// 1) Safely retrieve the current user from context
 	currentUserRaw, exists := c.Get("user")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not in context"})
@@ -265,7 +280,12 @@ func EditMongoUser(c *gin.Context) {
 		return
 	}
 
-	// For editing a Mongo user => need "write" on DB
+	// ---> If environment is an Atlas environment => bail out
+	if isAtlas(env.ConnectionString) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Managing MongoDB users is not available on Atlas environments"})
+		return
+	}
+
 	isAdmin := utils.IsAdmin(currentUser)
 	if !isAdmin {
 		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
@@ -281,8 +301,7 @@ func EditMongoUser(c *gin.Context) {
 
 	var req struct {
 		Password *string `json:"password,omitempty"`
-		// Roles is optional; if provided, it will replace the existing roles.
-		Roles *[]struct {
+		Roles    *[]struct {
 			Role string `json:"role"`
 			Db   string `json:"db"`
 		} `json:"roles,omitempty"`
@@ -335,7 +354,6 @@ func EditMongoUser(c *gin.Context) {
 
 // DeleteMongoUser removes a MongoDB user from the given database.
 func DeleteMongoUser(c *gin.Context) {
-	// 1) Safely retrieve the current user from context
 	currentUserRaw, exists := c.Get("user")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not in context"})
@@ -362,6 +380,12 @@ func DeleteMongoUser(c *gin.Context) {
 		`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
+		return
+	}
+
+	// ---> If environment is an Atlas environment => bail out
+	if isAtlas(env.ConnectionString) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Managing MongoDB users is not available on Atlas environments"})
 		return
 	}
 
@@ -394,4 +418,10 @@ func DeleteMongoUser(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully", "result": result})
+}
+
+// isAtlas is a simple helper that returns true if the connection string
+// likely points to an Atlas environment. E.g. includes "mongodb.net".
+func isAtlas(connString string) bool {
+	return strings.Contains(connString, "mongodb.net")
 }
