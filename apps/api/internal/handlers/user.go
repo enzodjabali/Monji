@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -266,7 +267,8 @@ func ListUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"users": users})
 }
 
-// GetUser retrieves a single user by ID.
+// GetUser retrieves a single user by ID, and also returns their environment/db permissions.
+// Admin/superadmin only.
 func GetUser(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -285,5 +287,86 @@ func GetUser(c *gin.Context) {
 		}
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"user": user})
+
+	// Also fetch user permissions
+	perms, err := fetchUserPermissions(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user":        user,
+		"permissions": perms,
+	})
+}
+
+// ======================== NEW PERMISSIONS FETCHING LOGIC ======================= //
+
+// userPermissions is the structure we return in "permissions"
+type userPermissions struct {
+	Environments []envPerm `json:"environments"`
+	Databases    []dbPerm  `json:"databases"`
+}
+
+type envPerm struct {
+	EnvironmentID   int    `json:"environment_id"`
+	EnvironmentName string `json:"environment_name"`
+	Permission      string `json:"permission"`
+}
+
+type dbPerm struct {
+	EnvironmentID   int    `json:"environment_id"`
+	EnvironmentName string `json:"environment_name"`
+	DBName          string `json:"db_name"`
+	Permission      string `json:"permission"`
+}
+
+// fetchUserPermissions returns the environment-level and database-level permissions
+// for the given user.
+func fetchUserPermissions(userID int) (*userPermissions, error) {
+	perms := &userPermissions{
+		Environments: []envPerm{},
+		Databases:    []dbPerm{},
+	}
+
+	// 1) Environment-level
+	envRows, err := database.DB.Query(`
+		SELECT e.id, e.name, p.permission
+		  FROM user_env_permissions p
+		  JOIN environments e ON e.id = p.environment_id
+		 WHERE p.user_id = ?`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch environment perms: %w", err)
+	}
+	defer envRows.Close()
+
+	for envRows.Next() {
+		var ep envPerm
+		if err := envRows.Scan(&ep.EnvironmentID, &ep.EnvironmentName, &ep.Permission); err != nil {
+			return nil, err
+		}
+		perms.Environments = append(perms.Environments, ep)
+	}
+
+	// 2) Database-level
+	dbRows, err := database.DB.Query(`
+		SELECT e.id, e.name, p.db_name, p.permission
+		  FROM user_db_permissions p
+		  JOIN environments e ON e.id = p.environment_id
+		 WHERE p.user_id = ?`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch db perms: %w", err)
+	}
+	defer dbRows.Close()
+
+	for dbRows.Next() {
+		var dp dbPerm
+		if err := dbRows.Scan(&dp.EnvironmentID, &dp.EnvironmentName, &dp.DBName, &dp.Permission); err != nil {
+			return nil, err
+		}
+		perms.Databases = append(perms.Databases, dp)
+	}
+
+	return perms, nil
 }
