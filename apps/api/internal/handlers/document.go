@@ -8,6 +8,7 @@ import (
 
 	"monji/internal/database"
 	"monji/internal/models"
+	"monji/internal/utils"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -25,6 +26,8 @@ func GetDocuments(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
+
+	// Load environment
 	var env models.Environment
 	row := database.DB.QueryRow(
 		`SELECT id, name, connection_string, created_by
@@ -33,6 +36,22 @@ func GetDocuments(c *gin.Context) {
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
+	}
+
+	// Check read permission on DB
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+	isAdmin := utils.IsAdmin(currentUser)
+	if !isAdmin {
+		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasDBRead {
+			c.JSON(http.StatusForbidden, gin.H{"error": "No permission to read documents in this DB"})
+			return
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -77,6 +96,8 @@ func GetDocument(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
+
+	// Load environment
 	var env models.Environment
 	row := database.DB.QueryRow(
 		`SELECT id, name, connection_string, created_by
@@ -85,6 +106,22 @@ func GetDocument(c *gin.Context) {
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
+	}
+
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+	isAdmin := utils.IsAdmin(currentUser)
+	if !isAdmin {
+		// Check read
+		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasDBRead {
+			c.JSON(http.StatusForbidden, gin.H{"error": "No permission to read documents in this DB"})
+			return
+		}
 	}
 
 	// Try converting docIDStr to an ObjectID. If it fails, treat it as a string _id.
@@ -132,6 +169,8 @@ func CreateDocument(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
+
+	// Load environment
 	var env models.Environment
 	row := database.DB.QueryRow(
 		`SELECT id, name, connection_string, created_by
@@ -140,6 +179,22 @@ func CreateDocument(c *gin.Context) {
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
+	}
+
+	// Check write
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+	isAdmin := utils.IsAdmin(currentUser)
+	if !isAdmin {
+		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasDBWrite {
+			c.JSON(http.StatusForbidden, gin.H{"error": "No permission to write documents in this DB"})
+			return
+		}
 	}
 
 	var doc bson.M
@@ -182,6 +237,8 @@ func UpdateDocument(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
+
+	// Load environment
 	var env models.Environment
 	row := database.DB.QueryRow(
 		`SELECT id, name, connection_string, created_by
@@ -209,6 +266,22 @@ func UpdateDocument(c *gin.Context) {
 
 	// Remove _id field if present to avoid immutable field error
 	delete(updateData, "_id")
+
+	// Check write
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+	isAdmin := utils.IsAdmin(currentUser)
+	if !isAdmin {
+		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasDBWrite {
+			c.JSON(http.StatusForbidden, gin.H{"error": "No permission to write documents in this DB"})
+			return
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -247,6 +320,8 @@ func DeleteDocument(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
+
+	// Load environment
 	var env models.Environment
 	row := database.DB.QueryRow(
 		`SELECT id, name, connection_string, created_by
@@ -264,6 +339,22 @@ func DeleteDocument(c *gin.Context) {
 		filter = bson.M{"_id": docIDStr}
 	} else {
 		filter = bson.M{"_id": objID}
+	}
+
+	// Check write
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+	isAdmin := utils.IsAdmin(currentUser)
+	if !isAdmin {
+		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasDBWrite {
+			c.JSON(http.StatusForbidden, gin.H{"error": "No permission to delete documents in this DB"})
+			return
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

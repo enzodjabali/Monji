@@ -11,6 +11,7 @@ import (
 
 	"monji/internal/database"
 	"monji/internal/models"
+	"monji/internal/utils"
 )
 
 // CreateMongoUser creates a new MongoDB user on the target database.
@@ -30,6 +31,22 @@ func CreateMongoUser(c *gin.Context) {
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
+	}
+
+	// For creating a MongoDB user, user must have "write" access on the DB
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+	isAdmin := utils.IsAdmin(currentUser)
+	if !isAdmin {
+		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasDBWrite {
+			c.JSON(http.StatusForbidden, gin.H{"error": "No permission to create Mongo users on this DB"})
+			return
+		}
 	}
 
 	var req struct {
@@ -102,6 +119,22 @@ func ListMongoUsers(c *gin.Context) {
 		return
 	}
 
+	// For listing the DB users, normal user needs "read" on the DB
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+	isAdmin := utils.IsAdmin(currentUser)
+	if !isAdmin {
+		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasDBRead {
+			c.JSON(http.StatusForbidden, gin.H{"error": "No permission to list Mongo users on this DB"})
+			return
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	client, err := database.ConnectMongo(ctx, env.ConnectionString)
@@ -111,7 +144,7 @@ func ListMongoUsers(c *gin.Context) {
 	}
 	defer client.Disconnect(ctx)
 
-	// Use the usersInfo command to list users.
+	// Use the usersInfo command to list users on that DB
 	command := bson.D{{"usersInfo", 1}}
 	var result bson.M
 	if err := client.Database(dbName).RunCommand(ctx, command).Decode(&result); err != nil {
@@ -139,6 +172,22 @@ func GetMongoUser(c *gin.Context) {
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
+	}
+
+	// For reading a specific user, need "read" on DB
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+	isAdmin := utils.IsAdmin(currentUser)
+	if !isAdmin {
+		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasDBRead {
+			c.JSON(http.StatusForbidden, gin.H{"error": "No permission to read Mongo user info on this DB"})
+			return
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -178,6 +227,22 @@ func EditMongoUser(c *gin.Context) {
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
+	}
+
+	// For editing a Mongo user => need "write" on DB
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+	isAdmin := utils.IsAdmin(currentUser)
+	if !isAdmin {
+		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasDBWrite {
+			c.JSON(http.StatusForbidden, gin.H{"error": "No permission to edit Mongo users in this DB"})
+			return
+		}
 	}
 
 	var req struct {
@@ -225,7 +290,7 @@ func EditMongoUser(c *gin.Context) {
 	// Use the updateUser command to change the user's password and/or roles.
 	command := bson.D{{"updateUser", username}}
 	for _, e := range updateDoc {
-		command = append(command, bson.E{Key: e.Key, Value: e.Value})
+		command = append(command, e)
 	}
 	var result bson.M
 	if err := client.Database(dbName).RunCommand(ctx, command).Decode(&result); err != nil {
@@ -253,6 +318,22 @@ func DeleteMongoUser(c *gin.Context) {
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
+	}
+
+	// For deleting a Mongo user => need "write" on DB
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+	isAdmin := utils.IsAdmin(currentUser)
+	if !isAdmin {
+		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasDBWrite {
+			c.JSON(http.StatusForbidden, gin.H{"error": "No permission to delete Mongo users in this DB"})
+			return
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

@@ -15,6 +15,7 @@ func SetupRoutes(cfg *config.Config) *gin.Engine {
 	// Protected routes.
 	api := router.Group("/")
 	// Individual route groups add their own middleware as needed.
+
 	RegisterEnvironmentRoutes(api)
 	RegisterDatabaseRoutes(api)
 	RegisterCollectionRoutes(api)
@@ -22,6 +23,7 @@ func SetupRoutes(cfg *config.Config) *gin.Engine {
 	RegisterMongoUserRoutes(api)
 	RegisterWhoAmIRoute(api)
 	RegisterUserRoutes(api)
+	RegisterPermissionsRoutes(api)
 
 	return router
 }

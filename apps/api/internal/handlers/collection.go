@@ -9,6 +9,7 @@ import (
 
 	"monji/internal/database"
 	"monji/internal/models"
+	"monji/internal/utils"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -18,16 +19,35 @@ import (
 func GetCollections(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
+
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
+
+	// Load environment
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
+	}
+
+	// Check read permission on this DB
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+	isAdmin := utils.IsAdmin(currentUser)
+	if !isAdmin {
+		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasDBRead {
+			c.JSON(http.StatusForbidden, gin.H{"error": "No permission to read this database"})
+			return
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -71,16 +91,35 @@ func GetCollections(c *gin.Context) {
 func CreateCollection(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
+
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
+
+	// Load environment
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
+	}
+
+	// Check write permission on this DB
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+	isAdmin := utils.IsAdmin(currentUser)
+	if !isAdmin {
+		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasDBWrite {
+			c.JSON(http.StatusForbidden, gin.H{"error": "No permission to write in this database"})
+			return
+		}
 	}
 
 	var req struct {
@@ -133,16 +172,35 @@ func EditCollection(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 	oldCollName := c.Param("collName")
+
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
+
+	// Load environment
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
+	}
+
+	// Check write permission
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+	isAdmin := utils.IsAdmin(currentUser)
+	if !isAdmin {
+		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasDBWrite {
+			c.JSON(http.StatusForbidden, gin.H{"error": "No permission to write in this database"})
+			return
+		}
 	}
 
 	var req struct {
@@ -190,16 +248,35 @@ func DeleteCollection(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 	collName := c.Param("collName")
+
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
+
+	// Load environment
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
+	}
+
+	// Check write permission
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+	isAdmin := utils.IsAdmin(currentUser)
+	if !isAdmin {
+		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasDBWrite {
+			c.JSON(http.StatusForbidden, gin.H{"error": "No permission to write in this database"})
+			return
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -228,16 +305,35 @@ func GetCollectionDetails(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 	collName := c.Param("collName")
+
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
+
+	// Load environment
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
+	}
+
+	// Check read permission
+	currentUserRaw, _ := c.Get("user")
+	currentUser := currentUserRaw.(models.User)
+	isAdmin := utils.IsAdmin(currentUser)
+	if !isAdmin {
+		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasDBRead {
+			c.JSON(http.StatusForbidden, gin.H{"error": "No permission to read this collection"})
+			return
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

@@ -27,6 +27,16 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
+	// Check if the calling user is admin or superadmin
+	callingUserRaw, _ := c.Get("user")
+	callingUser := callingUserRaw.(models.User)
+
+	// If caller is admin (NOT superadmin), then they cannot create a superadmin
+	if callingUser.Role == "admin" && req.Role == "superadmin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin cannot create superadmin users"})
+		return
+	}
+
 	// Hash the password before storing it.
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -85,6 +95,34 @@ func UpdateUser(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check the current user’s role
+	callingUserRaw, _ := c.Get("user")
+	callingUser := callingUserRaw.(models.User)
+
+	// We also need to check the role of the user we are updating:
+	var existingRole string
+	err = database.DB.QueryRow("SELECT role FROM users WHERE id = ?", id).Scan(&existingRole)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// If calling user is admin and the target is superadmin => forbidden
+	if callingUser.Role == "admin" && existingRole == "superadmin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Cannot edit superadmin user"})
+		return
+	}
+
+	// If calling user is admin and they are trying to set the user’s role to superadmin => forbidden
+	if callingUser.Role == "admin" && req.Role != nil && *req.Role == "superadmin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin cannot grant superadmin role"})
 		return
 	}
 
@@ -167,6 +205,29 @@ func DeleteUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
+
+	// Check the current user’s role
+	callingUserRaw, _ := c.Get("user")
+	callingUser := callingUserRaw.(models.User)
+
+	// Check the role of the user we’re deleting
+	var targetRole string
+	err = database.DB.QueryRow("SELECT role FROM users WHERE id = ?", id).Scan(&targetRole)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// If caller is admin and the target is superadmin => forbid
+	if callingUser.Role == "admin" && targetRole == "superadmin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Cannot delete superadmin user"})
+		return
+	}
+
 	res, err := database.DB.Exec("DELETE FROM users WHERE id = ?", id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -225,16 +286,4 @@ func GetUser(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"user": user})
-}
-
-// joinUpdates is a helper to join SQL update fields.
-func joinUpdates(updates []string, sep string) string {
-	result := ""
-	for i, s := range updates {
-		if i > 0 {
-			result += sep
-		}
-		result += s
-	}
-	return result
 }
