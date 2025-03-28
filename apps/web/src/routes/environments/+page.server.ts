@@ -1,3 +1,5 @@
+// apps/web/src/routes/environments/+page.server.ts
+
 import type { PageServerLoad, Actions } from './$types';
 import { redirect, fail } from '@sveltejs/kit';
 
@@ -34,12 +36,7 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => {
 
   return {
     user: userData.user,
-    environments: envData.environments || [],
-    // For the enhanced breadcrumb:
-    environmentId: null,
-    environmentName: null,
-    databaseName: null,
-    collectionName: null
+    environments: envData.environments || []
   };
 };
 

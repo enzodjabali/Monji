@@ -1,13 +1,5 @@
+import type { Actions } from './$types';
 import { redirect, fail } from '@sveltejs/kit';
-import type { PageServerLoad, Actions } from './$types';
-
-export const load: PageServerLoad = async ({ cookies }) => {
-  const token = cookies.get('token');
-  if (token) {
-    // User is already logged in. Redirect to /environments
-    throw redirect(303, '/environments');
-  }
-};
 
 export const actions: Actions = {
   default: async ({ request, fetch, cookies }) => {
@@ -28,9 +20,9 @@ export const actions: Actions = {
       cookies.set('token', result.token, {
         path: '/',
         httpOnly: true,
-        // For production, also consider secure: true, a maxAge, etc.
+        // For production, consider setting `secure: true` and an appropriate `maxAge`
       });
-      // Redirect to /environments on success
+      // Redirect to the environments page upon successful login
       throw redirect(303, '/environments');
     } else {
       // Return an error message if login failed

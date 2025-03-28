@@ -1,3 +1,4 @@
+// apps/web/src/routes/environments/[id]/databases/+page.server.ts
 import type { PageServerLoad, Actions } from './$types';
 import { redirect, fail } from '@sveltejs/kit';
 
@@ -7,7 +8,7 @@ export const load: PageServerLoad = async ({ params, cookies, fetch }) => {
     throw redirect(303, '/login');
   }
 
-  // Fetch user
+  // Fetch connected user info
   const userRes = await fetch('http://api:8080/whoami', {
     headers: { Authorization: `Bearer ${token}` }
   });
@@ -16,7 +17,7 @@ export const load: PageServerLoad = async ({ params, cookies, fetch }) => {
   }
   const userData = await userRes.json();
 
-  // Fetch environment list for the Navbar
+  // Fetch the environments list for the navbar
   const envRes = await fetch('http://api:8080/environments', {
     headers: { Authorization: `Bearer ${token}` }
   });
@@ -25,18 +26,8 @@ export const load: PageServerLoad = async ({ params, cookies, fetch }) => {
   }
   const envData = await envRes.json();
 
-  // Fetch specific environment to get its name
+  // Fetch databases for the selected environment (params.id)
   const envId = params.id;
-  const singleEnvRes = await fetch(`http://api:8080/environments/${envId}`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  if (!singleEnvRes.ok) {
-    throw redirect(303, '/environments');
-  }
-  const singleEnvData = await singleEnvRes.json();
-  const environmentName = singleEnvData.environment?.name ?? 'Unknown Env';
-
-  // Fetch databases for that environment
   const dbRes = await fetch(`http://api:8080/environments/${envId}/databases`, {
     headers: { Authorization: `Bearer ${token}` }
   });
@@ -50,25 +41,19 @@ export const load: PageServerLoad = async ({ params, cookies, fetch }) => {
     environments: envData.environments,
     databases: dbData.Databases,
     totalSize: dbData.TotalSize,
-    currentEnvironmentId: envId,
-
-    // For the breadcrumb
-    environmentId: envId,
-    environmentName,
-    databaseName: null,      // on databases page, no DB name yet
-    collectionName: null     // no collection name
+    currentEnvironmentId: envId
   };
 };
 
 export const actions: Actions = {
-  // Create DB
+  // Create a new database
   createDb: async ({ request, params, cookies, fetch }) => {
     const token = cookies.get('token');
     if (!token) {
       throw redirect(303, '/login');
     }
 
-    const envId = params.id;
+    const envId = params.id; // environment ID from the route
     const formData = await request.formData();
     const dbName = formData.get('dbName');
     const initialCollection = formData.get('initialCollection');
@@ -94,20 +79,21 @@ export const actions: Actions = {
       return fail(400, { error: 'Failed to create database' });
     }
 
+    // Refresh the page
     throw redirect(303, `/environments/${envId}/databases`);
   },
 
-  // Update (rename) DB
+  // Update (rename) a database
   updateDb: async ({ request, params, cookies, fetch }) => {
     const token = cookies.get('token');
     if (!token) {
       throw redirect(303, '/login');
     }
 
-    const envId = params.id;
+    const envId = params.id; // environment ID
     const formData = await request.formData();
-    const oldDbName = formData.get('oldDbName');
-    const newDbName = formData.get('newDbName');
+    const oldDbName = formData.get('oldDbName'); // the current name
+    const newDbName = formData.get('newDbName'); // the new name
 
     if (typeof oldDbName !== 'string' || typeof newDbName !== 'string') {
       return fail(400, { error: 'Invalid form data' });
@@ -135,16 +121,16 @@ export const actions: Actions = {
     throw redirect(303, `/environments/${envId}/databases`);
   },
 
-  // Delete DB
+  // Delete a database
   deleteDb: async ({ request, params, cookies, fetch }) => {
     const token = cookies.get('token');
     if (!token) {
       throw redirect(303, '/login');
     }
 
-    const envId = params.id;
+    const envId = params.id; // environment ID
     const formData = await request.formData();
-    const dbName = formData.get('dbName');
+    const dbName = formData.get('dbName'); // the database name to delete
 
     if (typeof dbName !== 'string') {
       return fail(400, { error: 'Invalid database name' });

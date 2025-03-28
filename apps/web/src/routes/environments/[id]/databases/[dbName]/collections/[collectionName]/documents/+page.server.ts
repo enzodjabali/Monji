@@ -7,7 +7,7 @@ export const load: PageServerLoad = async ({ params, cookies, fetch }) => {
     throw redirect(303, '/login');
   }
 
-  // 1) Fetch user
+  // 1) Fetch user info
   const userRes = await fetch('http://api:8080/whoami', {
     headers: { Authorization: `Bearer ${token}` }
   });
@@ -16,7 +16,7 @@ export const load: PageServerLoad = async ({ params, cookies, fetch }) => {
   }
   const userData = await userRes.json();
 
-  // 2) Fetch environments (Navbar)
+  // 2) Fetch environments (for Navbar)
   const envRes = await fetch('http://api:8080/environments', {
     headers: { Authorization: `Bearer ${token}` }
   });
@@ -25,26 +25,8 @@ export const load: PageServerLoad = async ({ params, cookies, fetch }) => {
   }
   const envData = await envRes.json();
 
-  // 3) environment name, DB name, etc.
+  // 3) Fetch documents for the specified collection
   const { id, dbName, collectionName } = params;
-
-  // Fetch environment name
-  const singleEnvRes = await fetch(`http://api:8080/environments/${id}`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  if (!singleEnvRes.ok) {
-    throw redirect(303, '/environments');
-  }
-  const singleEnvData = await singleEnvRes.json();
-  const environmentName = singleEnvData.environment?.name || 'Unknown Env';
-
-  // For DB name, we just use dbName
-  const databaseDisplayName = dbName;
-
-  // For collection name, we can just use collectionName
-  const collectionDisplayName = collectionName;
-
-  // 4) Fetch documents
   const docsRes = await fetch(
     `http://api:8080/environments/${id}/databases/${dbName}/collections/${collectionName}/documents`,
     {
@@ -52,9 +34,16 @@ export const load: PageServerLoad = async ({ params, cookies, fetch }) => {
     }
   );
   if (!docsRes.ok) {
+    // If call fails, redirect back to the collections page
     throw redirect(303, `/environments/${id}/databases/${dbName}/collections`);
   }
   const docsData = await docsRes.json();
+  // Example shape:
+  // {
+  //   "collection": "system.users",
+  //   "database": "admin",
+  //   "documents": [ { "_id": "...", ... }, ... ]
+  // }
 
   return {
     user: userData.user,
@@ -64,12 +53,6 @@ export const load: PageServerLoad = async ({ params, cookies, fetch }) => {
     collection: docsData.collection,
     currentEnvironmentId: id,
     currentDatabase: dbName,
-    currentCollection: collectionName,
-
-    // For the breadcrumb
-    environmentId: id,
-    environmentName,
-    databaseName: databaseDisplayName,
-    collectionName: collectionDisplayName
+    currentCollection: collectionName
   };
 };
