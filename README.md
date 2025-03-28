@@ -36,5 +36,10 @@ docker compose up --build
 Email: `admin@example.com`<br>
 Password: `admin`<br>
 
-
 here is the boss enzo
+
+## License
+
+Monji is licensed under the [GNU General Public License v3.0](LICENSE).
+
+© 2025 Enzo DJABALI

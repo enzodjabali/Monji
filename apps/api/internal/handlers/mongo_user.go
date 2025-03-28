@@ -32,6 +32,7 @@ func CreateMongoUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "User type assertion failed"})
 		return
 	}
+
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 	envID, err := strconv.Atoi(envIDStr)
@@ -39,16 +40,19 @@ func CreateMongoUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
+
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
+
 	if isAtlas(env.ConnectionString) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Managing MongoDB users is not available on Atlas environments"})
 		return
 	}
+
 	isAdmin := utils.IsAdmin(currentUser)
 	if !isAdmin {
 		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
@@ -61,6 +65,7 @@ func CreateMongoUser(c *gin.Context) {
 			return
 		}
 	}
+
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -77,6 +82,7 @@ func CreateMongoUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "username, password and roles are required"})
 		return
 	}
+
 	var rolesArr []bson.M
 	for _, r := range req.Roles {
 		if r.Role == "" || r.Db == "" {
@@ -85,29 +91,35 @@ func CreateMongoUser(c *gin.Context) {
 		}
 		rolesArr = append(rolesArr, bson.M{"role": r.Role, "db": r.Db})
 	}
+
 	decryptedConn, err := decrypt(env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decrypt connection string: " + err.Error()})
 		return
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+
 	client, err := database.ConnectMongo(ctx, decryptedConn)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB: " + err.Error()})
 		return
 	}
 	defer client.Disconnect(ctx)
+
 	command := bson.D{
-		{"createUser", req.Username},
-		{"pwd", req.Password},
-		{"roles", rolesArr},
+		{Key: "createUser", Value: req.Username},
+		{Key: "pwd", Value: req.Password},
+		{Key: "roles", Value: rolesArr},
 	}
+
 	var result bson.M
 	if err := client.Database(dbName).RunCommand(ctx, command).Decode(&result); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user: " + err.Error()})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "User created successfully", "result": result})
 }
 
@@ -123,6 +135,7 @@ func ListMongoUsers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "User type assertion failed"})
 		return
 	}
+
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 	envID, err := strconv.Atoi(envIDStr)
@@ -130,16 +143,19 @@ func ListMongoUsers(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
+
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
+
 	if isAtlas(env.ConnectionString) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Managing MongoDB users is not available on Atlas environments"})
 		return
 	}
+
 	isAdmin := utils.IsAdmin(currentUser)
 	if !isAdmin {
 		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
@@ -152,25 +168,33 @@ func ListMongoUsers(c *gin.Context) {
 			return
 		}
 	}
+
 	decryptedConn, err := decrypt(env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decrypt connection string: " + err.Error()})
 		return
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+
 	client, err := database.ConnectMongo(ctx, decryptedConn)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB: " + err.Error()})
 		return
 	}
 	defer client.Disconnect(ctx)
-	command := bson.D{{"usersInfo", 1}}
+
+	command := bson.D{
+		{Key: "usersInfo", Value: 1},
+	}
+
 	var result bson.M
 	if err := client.Database(dbName).RunCommand(ctx, command).Decode(&result); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list users: " + err.Error()})
 		return
 	}
+
 	c.JSON(http.StatusOK, result)
 }
 
@@ -186,24 +210,29 @@ func GetMongoUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "User type assertion failed"})
 		return
 	}
+
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 	username := c.Param("username")
+
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
+
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
+
 	if isAtlas(env.ConnectionString) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Managing MongoDB users is not available on Atlas environments"})
 		return
 	}
+
 	isAdmin := utils.IsAdmin(currentUser)
 	if !isAdmin {
 		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
@@ -216,25 +245,33 @@ func GetMongoUser(c *gin.Context) {
 			return
 		}
 	}
+
 	decryptedConn, err := decrypt(env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decrypt connection string: " + err.Error()})
 		return
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+
 	client, err := database.ConnectMongo(ctx, decryptedConn)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB: " + err.Error()})
 		return
 	}
 	defer client.Disconnect(ctx)
-	command := bson.D{{"usersInfo", username}}
+
+	command := bson.D{
+		{Key: "usersInfo", Value: username},
+	}
+
 	var result bson.M
 	if err := client.Database(dbName).RunCommand(ctx, command).Decode(&result); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info: " + err.Error()})
 		return
 	}
+
 	c.JSON(http.StatusOK, result)
 }
 
@@ -250,24 +287,29 @@ func EditMongoUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "User type assertion failed"})
 		return
 	}
+
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 	username := c.Param("username")
+
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
+
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
+
 	if isAtlas(env.ConnectionString) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Managing MongoDB users is not available on Atlas environments"})
 		return
 	}
+
 	isAdmin := utils.IsAdmin(currentUser)
 	if !isAdmin {
 		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
@@ -280,6 +322,7 @@ func EditMongoUser(c *gin.Context) {
 			return
 		}
 	}
+
 	var req struct {
 		Password *string `json:"password,omitempty"`
 		Roles    *[]struct {
@@ -291,22 +334,27 @@ func EditMongoUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+
 	decryptedConn, err := decrypt(env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decrypt connection string: " + err.Error()})
 		return
 	}
+
 	client, err := database.ConnectMongo(ctx, decryptedConn)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB: " + err.Error()})
 		return
 	}
 	defer client.Disconnect(ctx)
+
+	// Build an update document.
 	updateDoc := bson.D{}
 	if req.Password != nil {
-		updateDoc = append(updateDoc, bson.E{"pwd", *req.Password})
+		updateDoc = append(updateDoc, bson.E{Key: "pwd", Value: *req.Password})
 	}
 	if req.Roles != nil {
 		var rolesArr []bson.M
@@ -317,21 +365,25 @@ func EditMongoUser(c *gin.Context) {
 			}
 			rolesArr = append(rolesArr, bson.M{"role": r.Role, "db": r.Db})
 		}
-		updateDoc = append(updateDoc, bson.E{"roles", rolesArr})
+		updateDoc = append(updateDoc, bson.E{Key: "roles", Value: rolesArr})
 	}
+
 	if len(updateDoc) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No update parameters provided"})
 		return
 	}
-	command := bson.D{{"updateUser", username}}
-	for _, e := range updateDoc {
-		command = append(command, e)
+
+	command := bson.D{
+		{Key: "updateUser", Value: username},
 	}
+	command = append(command, updateDoc...)
+
 	var result bson.M
 	if err := client.Database(dbName).RunCommand(ctx, command).Decode(&result); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user: " + err.Error()})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "User updated successfully", "result": result})
 }
 
@@ -347,24 +399,29 @@ func DeleteMongoUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "User type assertion failed"})
 		return
 	}
+
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 	username := c.Param("username")
+
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
+
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
+
 	if isAtlas(env.ConnectionString) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Managing MongoDB users is not available on Atlas environments"})
 		return
 	}
+
 	isAdmin := utils.IsAdmin(currentUser)
 	if !isAdmin {
 		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
@@ -377,24 +434,32 @@ func DeleteMongoUser(c *gin.Context) {
 			return
 		}
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+
 	decryptedConn, err := decrypt(env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decrypt connection string: " + err.Error()})
 		return
 	}
+
 	client, err := database.ConnectMongo(ctx, decryptedConn)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB: " + err.Error()})
 		return
 	}
 	defer client.Disconnect(ctx)
-	command := bson.D{{"dropUser", username}}
+
+	command := bson.D{
+		{Key: "dropUser", Value: username},
+	}
+
 	var result bson.M
 	if err := client.Database(dbName).RunCommand(ctx, command).Decode(&result); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to drop user: " + err.Error()})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully", "result": result})
 }
