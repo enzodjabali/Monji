@@ -1,0 +1,22 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+      - "3000:3000"
+    depends_on:
+      - mongodb
+    volumes:
+      - sqlite_data:/data/sqlite
+
+  mongodb:
+    image: mongo
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=strongpassword
+    volumes:
+      - mongodb_data:/data/db
+
+volumes:
+  sqlite_data:
+  mongodb_data:
