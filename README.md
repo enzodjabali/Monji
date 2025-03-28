@@ -35,3 +35,6 @@ docker compose up --build
 **Default credentials:**<br>
 Email: `admin@example.com`<br>
 Password: `admin`<br>
+
+
+here is the boss enzo
