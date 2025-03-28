@@ -7,7 +7,6 @@ import (
 
 	"monji/internal/database"
 	"monji/internal/models"
-	"monji/internal/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
@@ -32,7 +31,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 			}
-			return []byte(utils.JWTSecret), nil
+			return []byte(JWTSecret), nil
 		})
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})

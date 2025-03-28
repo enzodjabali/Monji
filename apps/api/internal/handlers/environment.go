@@ -13,8 +13,8 @@ import (
 	"strings"
 
 	"monji/internal/database"
+	"monji/internal/middleware"
 	"monji/internal/models"
-	"monji/internal/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -104,7 +104,7 @@ func maskConnectionString(conn string) string {
 // getEnvPermissionString returns the environment-level permission for the given user.
 // If the user is admin/superadmin, it returns "readAndWrite".
 func getEnvPermissionString(user models.User, envID int) string {
-	if utils.IsAdmin(user) {
+	if middleware.IsAdmin(user) {
 		return "readAndWrite"
 	}
 	row := database.DB.QueryRow(
@@ -122,7 +122,7 @@ func getEnvPermissionString(user models.User, envID int) string {
 func CreateEnvironment(c *gin.Context) {
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-	if !utils.IsAdmin(currentUser) {
+	if !middleware.IsAdmin(currentUser) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Only admin or superadmin can create environments"})
 		return
 	}
@@ -173,7 +173,7 @@ func CreateEnvironment(c *gin.Context) {
 func ListEnvironments(c *gin.Context) {
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-	if utils.IsAdmin(currentUser) {
+	if middleware.IsAdmin(currentUser) {
 		rows, err := database.DB.Query(`SELECT id, name, connection_string, created_by FROM environments`)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -295,7 +295,7 @@ func UpdateEnvironment(c *gin.Context) {
 	}
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-	hasWrite, err := utils.HasEnvPermission(currentUser, id, "write")
+	hasWrite, err := middleware.HasEnvPermission(currentUser, id, "write")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -332,7 +332,7 @@ func UpdateEnvironment(c *gin.Context) {
 		updates = append(updates, "connection_string = ?")
 		params = append(params, encryptedConn)
 	}
-	query += joinUpdates(updates, ", ") + " WHERE id = ?"
+	query += strings.Join(updates, ", WHERE id = ?")
 	params = append(params, id)
 	res, err := database.DB.Exec(query, params...)
 	if err != nil {
@@ -378,7 +378,7 @@ func DeleteEnvironment(c *gin.Context) {
 	}
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-	hasWrite, err := utils.HasEnvPermission(currentUser, id, "write")
+	hasWrite, err := middleware.HasEnvPermission(currentUser, id, "write")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

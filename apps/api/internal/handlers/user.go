@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"monji/internal/database"
 	"monji/internal/models"
@@ -166,7 +167,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	query += joinUpdates(updates, ", ") + " WHERE id = ?"
+	query += strings.Join(updates, ",  WHERE id = ?")
 	params = append(params, id)
 
 	res, err := database.DB.Exec(query, params...)
