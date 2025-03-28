@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"monji/internal/database"
+	"monji/internal/middleware"
 	"monji/internal/models"
-	"monji/internal/utils"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -34,10 +34,10 @@ func GetDatabases(c *gin.Context) {
 
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-	isAdmin := utils.IsAdmin(currentUser)
+	isAdmin := middleware.IsAdmin(currentUser)
 
 	if !isAdmin {
-		hasEnvRead, err := utils.HasEnvPermission(currentUser, envID, "read")
+		hasEnvRead, err := middleware.HasEnvPermission(currentUser, envID, "read")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -85,7 +85,7 @@ func GetDatabases(c *gin.Context) {
 			})
 			totalSize += float64(dbInfo.SizeOnDisk)
 		} else {
-			hasDbRead, err := utils.HasDBPermission(currentUser, envID, dbInfo.Name, "read")
+			hasDbRead, err := middleware.HasDBPermission(currentUser, envID, dbInfo.Name, "read")
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
@@ -127,7 +127,7 @@ func CreateDatabase(c *gin.Context) {
 
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-	hasEnvWrite, err := utils.HasEnvPermission(currentUser, envID, "write")
+	hasEnvWrite, err := middleware.HasEnvPermission(currentUser, envID, "write")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -209,7 +209,7 @@ func EditDatabase(c *gin.Context) {
 
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-	hasEnvWrite, err := utils.HasEnvPermission(currentUser, envID, "write")
+	hasEnvWrite, err := middleware.HasEnvPermission(currentUser, envID, "write")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -311,7 +311,7 @@ func DeleteDatabase(c *gin.Context) {
 
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-	hasEnvWrite, err := utils.HasEnvPermission(currentUser, envID, "write")
+	hasEnvWrite, err := middleware.HasEnvPermission(currentUser, envID, "write")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -369,7 +369,7 @@ func GetDatabaseDetails(c *gin.Context) {
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
 
-	hasEnvRead, err := utils.HasEnvPermission(currentUser, envID, "read")
+	hasEnvRead, err := middleware.HasEnvPermission(currentUser, envID, "read")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -379,7 +379,7 @@ func GetDatabaseDetails(c *gin.Context) {
 		return
 	}
 
-	hasDbRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
+	hasDbRead, err := middleware.HasDBPermission(currentUser, envID, dbName, "read")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -417,7 +417,7 @@ func GetDatabaseDetails(c *gin.Context) {
 	}
 
 	myPerm := "readAndWrite"
-	if !utils.IsAdmin(currentUser) {
+	if !middleware.IsAdmin(currentUser) {
 		myPerm = getDbPermissionString(currentUser, envID, dbName)
 	}
 

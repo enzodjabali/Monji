@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"monji/internal/database"
+	"monji/internal/middleware"
 	"monji/internal/models"
-	"monji/internal/utils"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -53,9 +53,9 @@ func CreateMongoUser(c *gin.Context) {
 		return
 	}
 
-	isAdmin := utils.IsAdmin(currentUser)
+	isAdmin := middleware.IsAdmin(currentUser)
 	if !isAdmin {
-		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
+		hasDBWrite, err := middleware.HasDBPermission(currentUser, envID, dbName, "write")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -156,9 +156,9 @@ func ListMongoUsers(c *gin.Context) {
 		return
 	}
 
-	isAdmin := utils.IsAdmin(currentUser)
+	isAdmin := middleware.IsAdmin(currentUser)
 	if !isAdmin {
-		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
+		hasDBRead, err := middleware.HasDBPermission(currentUser, envID, dbName, "read")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -233,9 +233,9 @@ func GetMongoUser(c *gin.Context) {
 		return
 	}
 
-	isAdmin := utils.IsAdmin(currentUser)
+	isAdmin := middleware.IsAdmin(currentUser)
 	if !isAdmin {
-		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
+		hasDBRead, err := middleware.HasDBPermission(currentUser, envID, dbName, "read")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -310,9 +310,9 @@ func EditMongoUser(c *gin.Context) {
 		return
 	}
 
-	isAdmin := utils.IsAdmin(currentUser)
+	isAdmin := middleware.IsAdmin(currentUser)
 	if !isAdmin {
-		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
+		hasDBWrite, err := middleware.HasDBPermission(currentUser, envID, dbName, "write")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -422,9 +422,9 @@ func DeleteMongoUser(c *gin.Context) {
 		return
 	}
 
-	isAdmin := utils.IsAdmin(currentUser)
+	isAdmin := middleware.IsAdmin(currentUser)
 	if !isAdmin {
-		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
+		hasDBWrite, err := middleware.HasDBPermission(currentUser, envID, dbName, "write")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return

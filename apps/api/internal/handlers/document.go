@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"monji/internal/database"
+	"monji/internal/middleware"
 	"monji/internal/models"
-	"monji/internal/utils"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -17,7 +17,7 @@ import (
 
 // getDbPermissionString returns the DB-level permission for the given user.
 func getDbPermissionString(user models.User, envID int, dbName string) string {
-	if utils.IsAdmin(user) {
+	if middleware.IsAdmin(user) {
 		return "readAndWrite"
 	}
 	row := database.DB.QueryRow(
@@ -49,9 +49,9 @@ func GetDocuments(c *gin.Context) {
 	}
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-	isAdmin := utils.IsAdmin(currentUser)
+	isAdmin := middleware.IsAdmin(currentUser)
 	if !isAdmin {
-		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
+		hasDBRead, err := middleware.HasDBPermission(currentUser, envID, dbName, "read")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -118,9 +118,9 @@ func GetDocument(c *gin.Context) {
 	}
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-	isAdmin := utils.IsAdmin(currentUser)
+	isAdmin := middleware.IsAdmin(currentUser)
 	if !isAdmin {
-		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
+		hasDBRead, err := middleware.HasDBPermission(currentUser, envID, dbName, "read")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -186,9 +186,9 @@ func CreateDocument(c *gin.Context) {
 	}
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-	isAdmin := utils.IsAdmin(currentUser)
+	isAdmin := middleware.IsAdmin(currentUser)
 	if !isAdmin {
-		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
+		hasDBWrite, err := middleware.HasDBPermission(currentUser, envID, dbName, "write")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -259,9 +259,9 @@ func UpdateDocument(c *gin.Context) {
 	delete(updateData, "_id")
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-	isAdmin := utils.IsAdmin(currentUser)
+	isAdmin := middleware.IsAdmin(currentUser)
 	if !isAdmin {
-		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
+		hasDBWrite, err := middleware.HasDBPermission(currentUser, envID, dbName, "write")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -322,9 +322,9 @@ func DeleteDocument(c *gin.Context) {
 	}
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-	isAdmin := utils.IsAdmin(currentUser)
+	isAdmin := middleware.IsAdmin(currentUser)
 	if !isAdmin {
-		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
+		hasDBWrite, err := middleware.HasDBPermission(currentUser, envID, dbName, "write")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return

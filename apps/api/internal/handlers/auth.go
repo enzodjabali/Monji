@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"monji/internal/database"
+	"monji/internal/middleware"
 	"monji/internal/models"
-	"monji/internal/utils"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
@@ -38,7 +38,7 @@ func Login(c *gin.Context) {
 	}
 
 	// Generate JWT token.
-	token, err := utils.GenerateJWT(user)
+	token, err := middleware.GenerateJWT(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return

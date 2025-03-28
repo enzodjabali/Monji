@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"monji/internal/database"
+	"monji/internal/middleware"
 	"monji/internal/models"
-	"monji/internal/utils"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -35,10 +35,10 @@ func GetCollections(c *gin.Context) {
 
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-	isAdmin := utils.IsAdmin(currentUser)
+	isAdmin := middleware.IsAdmin(currentUser)
 
 	if !isAdmin {
-		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
+		hasDBRead, err := middleware.HasDBPermission(currentUser, envID, dbName, "read")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -122,10 +122,10 @@ func GetCollectionDetails(c *gin.Context) {
 
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-	isAdmin := utils.IsAdmin(currentUser)
+	isAdmin := middleware.IsAdmin(currentUser)
 
 	if !isAdmin {
-		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
+		hasDBRead, err := middleware.HasDBPermission(currentUser, envID, dbName, "read")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -205,9 +205,9 @@ func CreateCollection(c *gin.Context) {
 
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-	isAdmin := utils.IsAdmin(currentUser)
+	isAdmin := middleware.IsAdmin(currentUser)
 	if !isAdmin {
-		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
+		hasDBWrite, err := middleware.HasDBPermission(currentUser, envID, dbName, "write")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -291,9 +291,9 @@ func EditCollection(c *gin.Context) {
 
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-	isAdmin := utils.IsAdmin(currentUser)
+	isAdmin := middleware.IsAdmin(currentUser)
 	if !isAdmin {
-		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
+		hasDBWrite, err := middleware.HasDBPermission(currentUser, envID, dbName, "write")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -373,9 +373,9 @@ func DeleteCollection(c *gin.Context) {
 
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-	isAdmin := utils.IsAdmin(currentUser)
+	isAdmin := middleware.IsAdmin(currentUser)
 	if !isAdmin {
-		hasDBWrite, err := utils.HasDBPermission(currentUser, envID, dbName, "write")
+		hasDBWrite, err := middleware.HasDBPermission(currentUser, envID, dbName, "write")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
