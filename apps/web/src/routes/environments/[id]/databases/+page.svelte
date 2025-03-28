@@ -1,8 +1,6 @@
-<!-- apps/web/src/routes/environments/[id]/databases/+page.svelte -->
 <script lang="ts">
   import Navbar from '$lib/components/Navbar.svelte';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
-  import { fade, scale } from 'svelte/transition';
   import { goto } from '$app/navigation';
 
   export let data: {
@@ -26,51 +24,45 @@
     }[];
     totalSize: number;
     currentEnvironmentId: string;
+
+    // breadcrumb props
+    environmentId: string | null;
+    environmentName: string | null;
+    databaseName: string | null;
+    collectionName: string | null;
+    documentId: string | null;
   };
 
-  // Manage modals for Create / Edit / Delete
   let showCreateModal = false;
   let showEditModal = false;
   let showDeleteModal = false;
-
-  // For "Manage" dropdown on each database
   let manageDropdownOpen: string | null = null;
 
-  // Fields for creating a DB
   let newDbName = '';
-
-  // Fields for renaming a DB
-  let oldDbName: string | null = null; // store the original name
+  let oldDbName: string | null = null;
   let renameDbNewName = '';
-
-  // Fields for deleting a DB
   let deleteDbName: string | null = null;
-  let typedDbName = ''; // confirm typed name
+  let typedDbName = '';
 
-  // Toggle the "Manage" dropdown for a given dbName
   function toggleManageDropdown(dbName: string) {
     manageDropdownOpen = manageDropdownOpen === dbName ? null : dbName;
   }
-
   function closeManageDropdown() {
     manageDropdownOpen = null;
   }
 
-  // Open the Create Database modal
   function openCreateModal() {
     newDbName = '';
     showCreateModal = true;
   }
 
-  // Open the Rename modal
   function openEditModal(dbName: string) {
     oldDbName = dbName;
-    renameDbNewName = dbName; // start with the current name
+    renameDbNewName = dbName;
     closeManageDropdown();
     showEditModal = true;
   }
 
-  // Open the Delete modal
   function openDeleteModal(dbName: string) {
     deleteDbName = dbName;
     typedDbName = '';
@@ -78,21 +70,18 @@
     showDeleteModal = true;
   }
 
-  // Close all modals
   function closeModals() {
     showCreateModal = false;
     showEditModal = false;
     showDeleteModal = false;
   }
 
-  // Close modals if user clicks the overlay background
   function handleOverlayClick(e: MouseEvent) {
     if (e.target === e.currentTarget) {
       closeModals();
     }
   }
 
-  // If user clicks anywhere outside the open "Manage" dropdown, close it
   function handleWindowClick(e: MouseEvent) {
     if (!manageDropdownOpen) return;
     const container = document.getElementById(`db-manage-dropdown-${manageDropdownOpen}`);
@@ -102,30 +91,32 @@
     }
   }
 
-  // Navigate to the collections page for a given database name
   function goToCollections(dbName: string) {
     goto(`/environments/${data.currentEnvironmentId}/databases/${dbName}/collections`);
   }
 </script>
 
-<!-- We pass currentEnvironmentId to the Navbar so it’s preselected -->
+<svelte:window on:click={handleWindowClick} />
+
 <Navbar
   user={data.user}
   environments={data.environments}
   currentEnvironmentId={data.currentEnvironmentId}
 />
 
-<!-- BREADCRUMB: environmentId => "Environments / Databases" -->
-<Breadcrumb environmentId={data.currentEnvironmentId} />
-
-<!-- Close "Manage" dropdown if user clicks outside -->
-<svelte:window on:click={handleWindowClick} />
+<!-- Use the new styled breadcrumb -->
+<Breadcrumb
+  environmentId={data.environmentId}
+  environmentName={data.environmentName}
+  databaseName={data.databaseName}
+  collectionName={data.collectionName}
+  documentId={data.documentId}
+/>
 
 <div class="bg-gray-100 min-h-screen p-8">
   <div class="max-w-7xl mx-auto grid gap-6 md:grid-cols-[2fr_1fr]">
-    <!-- LEFT COLUMN: Databases box -->
+    <!-- LEFT: Databases list -->
     <div class="bg-white rounded-lg shadow p-6 space-y-4">
-      <!-- Heading + create button -->
       <div class="flex justify-between items-center mb-2">
         <h2 class="text-2xl font-bold text-gray-800">Databases</h2>
         <button
@@ -135,26 +126,21 @@
           Create a database
         </button>
       </div>
-      <!-- Total Size -->
       <p class="text-gray-700 mb-4">
         Total Size: {data.totalSize} bytes
       </p>
 
-      <!-- Databases list -->
       {#if data.databases?.length > 0}
         <div class="grid gap-4">
           {#each data.databases as db}
-            <!-- Entire card clickable -->
             <div
               class="border border-gray-200 rounded p-4 hover:shadow transition relative cursor-pointer"
               on:click={() => goToCollections(db.Name)}
             >
-              <!-- Top row: Name + Manage button -->
               <div class="flex items-center justify-between mb-1">
                 <h3 class="font-semibold text-lg text-gray-800">
                   {db.Name}
                 </h3>
-                <!-- Manage button (clicks here do not propagate) -->
                 <div
                   class="relative"
                   id={"db-manage-dropdown-" + db.Name}
@@ -169,7 +155,6 @@
                   {#if manageDropdownOpen === db.Name}
                     <div
                       class="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded shadow z-10"
-                      transition:scale
                     >
                       <ul class="py-1">
                         <li>
@@ -193,8 +178,6 @@
                   {/if}
                 </div>
               </div>
-
-              <!-- Database stats -->
               <p class="text-sm text-gray-600">
                 Size on Disk: {db.SizeOnDisk} bytes
               </p>
@@ -209,7 +192,7 @@
       {/if}
     </div>
 
-    <!-- RIGHT COLUMN: Toolbar -->
+    <!-- RIGHT: Toolbar -->
     <div class="bg-white rounded-lg shadow p-6 space-y-6">
       <h2 class="text-2xl font-bold text-gray-800">Toolbar</h2>
       <div>
@@ -257,22 +240,15 @@
   </div>
 </div>
 
-<!-- CREATE DATABASE MODAL -->
+<!-- CREATE MODAL -->
 {#if showCreateModal}
   <div
     class="fixed inset-0 flex items-center justify-center bg-black/20 z-50"
-    transition:fade={{ duration: 150 }}
     on:click={handleOverlayClick}
   >
-    <div
-      class="bg-white rounded-md p-6 w-full max-w-md"
-      transition:scale={{ duration: 150 }}
-      on:click|stopPropagation
-    >
+    <div class="bg-white rounded-md p-6 w-full max-w-md" on:click|stopPropagation>
       <h2 class="text-xl font-bold mb-4">Create a database</h2>
-      <!-- Action form for creating a DB -->
       <form method="post" action="?/createDb" class="space-y-4">
-        <!-- Hidden initialCollection field -->
         <input type="hidden" name="initialCollection" value="delete_me" />
 
         <div>
@@ -308,22 +284,18 @@
   </div>
 {/if}
 
-<!-- EDIT (RENAME) DATABASE MODAL -->
+<!-- EDIT (RENAME) DB MODAL -->
 {#if showEditModal && oldDbName !== null}
   <div
     class="fixed inset-0 flex items-center justify-center bg-black/20 z-50"
-    transition:fade={{ duration: 150 }}
     on:click={handleOverlayClick}
   >
     <div
       class="bg-white rounded-md p-6 w-full max-w-md"
-      transition:scale={{ duration: 150 }}
       on:click|stopPropagation
     >
       <h2 class="text-xl font-bold mb-4">Rename the database</h2>
-      <!-- Action form for renaming -->
       <form method="post" action="?/updateDb" class="space-y-4">
-        <!-- Hidden field for the current name -->
         <input type="hidden" name="oldDbName" value={oldDbName} />
 
         <div>
@@ -333,7 +305,6 @@
             name="newDbName"
             type="text"
             bind:value={renameDbNewName}
-            placeholder="Enter new database name"
             required
             class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600"
           />
@@ -359,16 +330,14 @@
   </div>
 {/if}
 
-<!-- DELETE DATABASE MODAL -->
+<!-- DELETE DB MODAL -->
 {#if showDeleteModal && deleteDbName !== null}
   <div
     class="fixed inset-0 flex items-center justify-center bg-black/20 z-50"
-    transition:fade={{ duration: 150 }}
     on:click={handleOverlayClick}
   >
     <div
       class="bg-white rounded-md p-6 w-full max-w-md"
-      transition:scale={{ duration: 150 }}
       on:click|stopPropagation
     >
       <h2 class="text-xl font-bold mb-4 text-red-600">Delete the database</h2>
@@ -376,9 +345,7 @@
         To confirm, type the database name: <strong>"{deleteDbName}"</strong> below.
       </p>
 
-      <!-- Action form for deleting -->
       <form method="post" action="?/deleteDb" class="space-y-4">
-        <!-- Hidden field for the database name -->
         <input type="hidden" name="dbName" value={deleteDbName} />
 
         <div>

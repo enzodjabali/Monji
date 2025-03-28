@@ -1,64 +1,158 @@
 <script lang="ts">
-    /**
-     * We show up to four breadcrumb levels:
-     * 1) Environments (always shown, links to /environments)
-     * 2) Databases (requires environmentId)
-     * 3) Collections (requires environmentId + databaseName)
-     * 4) Documents  (requires environmentId + databaseName + collectionName)
-     *
-     * Pass the IDs/names you have. If a prop is omitted or null, that level is skipped.
-     */
-    export let environmentId: string | null = null;
-    export let databaseName: string | null = null;
-    export let collectionName: string | null = null;
-  </script>
-  
-  <nav class="text-sm text-gray-500 mb-4">
-    <ol class="flex items-center space-x-2">
-      <!-- Always show "Environments" linking to /environments -->
-      <li>
-        <a href="/environments" class="text-blue-600 hover:underline">
+  /**
+   * We show up to four breadcrumb steps:
+   *
+   * 1) "Environments" (always) - links to /environments
+   * 2) environmentName (if environmentId && environmentName)
+   * 3) databaseName    (if databaseName)
+   * 4) collectionName  (if collectionName)
+   *
+   * In each case, we link to the relevant route.
+   */
+
+  export let environmentId: string | null = null;
+  export let environmentName: string | null = null;
+  export let databaseName: string | null = null;
+  export let collectionName: string | null = null;
+  export let documentId: string | null = null;
+</script>
+
+<nav class="flex items-center space-x-2 text-sm text-gray-700 my-4" aria-label="Breadcrumb">
+  <ol class="inline-flex items-center space-x-1 md:space-x-3">
+    <!-- 1) Always link to /environments -->
+    <li>
+      <div class="flex items-center">
+        <!-- Icon - you can change it to any symbol/text you want -->
+        <svg
+          class="w-4 h-4 mr-1 text-gray-400"
+          fill="currentColor"
+          viewBox="0 0 20 20"
+          aria-hidden="true"
+        >
+          <path d="M10 3.172l5.95 5.95-1.414 1.414L10 5.586l-4.536 4.95L4.05 9.121z" />
+        </svg>
+        <a
+          href="/environments"
+          class="text-blue-600 hover:underline font-medium"
+        >
           Environments
         </a>
-      </li>
-  
-      <!-- If environmentId is present, show "Databases" link -->
-      {#if environmentId}
-        <li>/</li>
-        <li>
+      </div>
+    </li>
+
+    <!-- 2) environmentName -->
+    {#if environmentId && environmentName}
+      <li>
+        <div class="flex items-center">
+          <svg
+            class="w-6 h-6 text-gray-400 mx-1"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+            aria-hidden="true"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M7.293 14.707a1 1 0 010-1.414L10.586 10 
+                 7.293 6.707a1 1 0 011.414-1.414l4 4a1 
+                 1 0 010 1.414l-4 4a1 1 0 
+                 01-1.414 0z"
+              clip-rule="evenodd"
+            />
+          </svg>
           <a
             href={`/environments/${environmentId}/databases`}
-            class="text-blue-600 hover:underline"
+            class="text-blue-600 hover:underline font-medium"
           >
-            Databases
+            {environmentName}
           </a>
-        </li>
-      {/if}
-  
-      <!-- If databaseName is present, show "Collections" link -->
-      {#if environmentId && databaseName}
-        <li>/</li>
-        <li>
+        </div>
+      </li>
+    {/if}
+
+    <!-- 3) databaseName -->
+    {#if environmentId && databaseName}
+      <li>
+        <div class="flex items-center">
+          <svg
+            class="w-6 h-6 text-gray-400 mx-1"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+            aria-hidden="true"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M7.293 14.707a1 1 0 010-1.414L10.586 10 
+                 7.293 6.707a1 1 0 011.414-1.414l4 4a1 
+                 1 0 010 1.414l-4 4a1 1 0 
+                 01-1.414 0z"
+              clip-rule="evenodd"
+            />
+          </svg>
           <a
             href={`/environments/${environmentId}/databases/${databaseName}/collections`}
-            class="text-blue-600 hover:underline"
+            class="text-blue-600 hover:underline font-medium"
           >
-            Collections
+            {databaseName}
           </a>
-        </li>
-      {/if}
-  
-      <!-- If collectionName is present, show "Documents" link -->
-      {#if environmentId && databaseName && collectionName}
-        <li>/</li>
-        <li>
+        </div>
+      </li>
+    {/if}
+
+    <!-- 4) collectionName -->
+    {#if environmentId && databaseName && collectionName}
+      <li>
+        <div class="flex items-center">
+          <svg
+            class="w-6 h-6 text-gray-400 mx-1"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+            aria-hidden="true"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M7.293 14.707a1 1 0 010-1.414L10.586 10 
+                 7.293 6.707a1 1 0 011.414-1.414l4 4a1 
+                 1 0 010 1.414l-4 4a1 1 0 
+                 01-1.414 0z"
+              clip-rule="evenodd"
+            />
+          </svg>
           <a
             href={`/environments/${environmentId}/databases/${databaseName}/collections/${collectionName}/documents`}
-            class="text-blue-600 hover:underline"
+            class="text-blue-600 hover:underline font-medium"
           >
-            Documents
+            {collectionName}
           </a>
-        </li>
-      {/if}
-    </ol>
-  </nav>
+        </div>
+      </li>
+    {/if}
+    <!-- 5) documentId -->
+    {#if environmentId && databaseName && collectionName && documentId}
+      <li>
+        <div class="flex items-center">
+          <svg
+            class="w-6 h-6 text-gray-400 mx-1"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+            aria-hidden="true"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M7.293 14.707a1 1 0 010-1.414L10.586 10 
+                 7.293 6.707a1 1 0 011.414-1.414l4 4a1 
+                 1 0 010 1.414l-4 4a1 1 0 
+                 01-1.414 0z"
+              clip-rule="evenodd"
+            />
+          </svg>
+          <a
+            href={`/environments/${environmentId}/databases/${databaseName}/collections/${collectionName}/documents/${documentId}`}
+            class="text-blue-600 hover:underline font-medium"
+          >
+            {documentId}
+          </a>
+        </div>
+      </li>
+    {/if}
+  </ol>
+</nav>

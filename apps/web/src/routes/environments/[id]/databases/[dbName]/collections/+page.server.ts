@@ -1,4 +1,3 @@
-// apps/web/src/routes/environments/[id]/databases/[dbName]/collections/+page.server.ts
 import type { PageServerLoad, Actions } from './$types';
 import { redirect, fail } from '@sveltejs/kit';
 
@@ -6,22 +5,35 @@ export const load: PageServerLoad = async ({ params, cookies, fetch }) => {
   const token = cookies.get('token');
   if (!token) throw redirect(303, '/login');
 
-  // Fetch user info
+  // 1) Fetch user info
   const userRes = await fetch('http://api:8080/whoami', {
     headers: { Authorization: `Bearer ${token}` }
   });
   if (!userRes.ok) throw redirect(303, '/login');
   const userData = await userRes.json();
 
-  // Fetch environments for the Navbar
+  // 2) Fetch all environments for the Navbar
   const envRes = await fetch('http://api:8080/environments', {
     headers: { Authorization: `Bearer ${token}` }
   });
   if (!envRes.ok) throw redirect(303, '/login');
   const envData = await envRes.json();
 
-  // Fetch collections for the selected database
+  // 3) Fetch environment name
   const { id, dbName } = params;
+  const singleEnvRes = await fetch(`http://api:8080/environments/${id}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!singleEnvRes.ok) {
+    throw redirect(303, '/environments');
+  }
+  const singleEnvData = await singleEnvRes.json();
+  const environmentName = singleEnvData.environment?.name ?? 'Unknown Env';
+
+  // 4) If you want a “display name” for the DB, fetch it from your API. For now, just use dbName as is.
+  const databaseDisplayName = dbName;
+
+  // 5) Fetch collections
   const colRes = await fetch(
     `http://api:8080/environments/${id}/databases/${dbName}/collections`,
     {
@@ -29,7 +41,6 @@ export const load: PageServerLoad = async ({ params, cookies, fetch }) => {
     }
   );
   if (!colRes.ok) {
-    // Redirect back to the databases page if the API call fails
     throw redirect(303, `/environments/${id}/databases`);
   }
   const colData = await colRes.json();
@@ -38,9 +49,15 @@ export const load: PageServerLoad = async ({ params, cookies, fetch }) => {
     user: userData.user,
     environments: envData.environments || [],
     collections: colData.collections || [],
-    database: colData.database,
+    database: colData.database, // might be "dbName" or something
     currentEnvironmentId: id,
-    currentDatabase: dbName
+    currentDatabase: dbName,
+
+    // For breadcrumb
+    environmentId: id,
+    environmentName,
+    databaseName: databaseDisplayName,
+    collectionName: null
   };
 };
 
@@ -58,7 +75,7 @@ export const actions: Actions = {
       return fail(400, { error: 'Invalid collection name' });
     }
 
-    // Call API: POST /environments/:id/databases/:dbName/collections
+    // POST /environments/:id/databases/:dbName/collections
     const res = await fetch(`http://api:8080/environments/${id}/databases/${dbName}/collections`, {
       method: 'POST',
       headers: {
@@ -89,7 +106,7 @@ export const actions: Actions = {
       return fail(400, { error: 'Invalid form data' });
     }
 
-    // Call API: PUT /environments/:id/databases/:dbName/collections/:collName
+    // PUT /environments/:id/databases/:dbName/collections/:collName
     const res = await fetch(
       `http://api:8080/environments/${id}/databases/${dbName}/collections/${oldCollectionName}`,
       {
@@ -122,7 +139,7 @@ export const actions: Actions = {
       return fail(400, { error: 'Invalid collection name' });
     }
 
-    // Call API: DELETE /environments/:id/databases/:dbName/collections/:collName
+    // DELETE ...
     const res = await fetch(
       `http://api:8080/environments/${id}/databases/${dbName}/collections/${collectionName}`,
       {
