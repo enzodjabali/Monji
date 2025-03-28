@@ -25,18 +25,15 @@ func GetCollections(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
-
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
-
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
 	isAdmin := utils.IsAdmin(currentUser)
-
 	if !isAdmin {
 		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
 		if err != nil {
@@ -48,14 +45,12 @@ func GetCollections(c *gin.Context) {
 			return
 		}
 	}
-
 	// Decrypt the connection string.
 	decryptedConn, err := decrypt(env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decrypt connection string: " + err.Error()})
 		return
 	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	client, err := database.ConnectMongo(ctx, decryptedConn)
@@ -64,14 +59,12 @@ func GetCollections(c *gin.Context) {
 		return
 	}
 	defer client.Disconnect(ctx)
-
 	// List collection names.
 	collNames, err := client.Database(dbName).ListCollectionNames(ctx, bson.D{})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list collections: " + err.Error()})
 		return
 	}
-
 	var collections []gin.H
 	for _, coll := range collNames {
 		var stats bson.M
@@ -87,12 +80,10 @@ func GetCollections(c *gin.Context) {
 			"totalIndexSize": stats["totalIndexSize"],
 		})
 	}
-
 	myPerm := "readAndWrite"
 	if !isAdmin {
 		myPerm = getDbPermissionString(currentUser, envID, dbName)
 	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"database":     dbName,
 		"collections":  collections,
@@ -106,24 +97,20 @@ func GetCollectionDetails(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 	collName := c.Param("collName")
-
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
-
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
-
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
 	isAdmin := utils.IsAdmin(currentUser)
-
 	if !isAdmin {
 		hasDBRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
 		if err != nil {
@@ -135,13 +122,11 @@ func GetCollectionDetails(c *gin.Context) {
 			return
 		}
 	}
-
 	decryptedConn, err := decrypt(env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decrypt connection string: " + err.Error()})
 		return
 	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	client, err := database.ConnectMongo(ctx, decryptedConn)
@@ -150,13 +135,11 @@ func GetCollectionDetails(c *gin.Context) {
 		return
 	}
 	defer client.Disconnect(ctx)
-
 	var stats bson.M
 	if err := client.Database(dbName).RunCommand(ctx, bson.D{{Key: "collStats", Value: collName}}).Decode(&stats); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to get stats for collection %s: %v", collName, err)})
 		return
 	}
-
 	cursor, err := client.Database(dbName).Collection(collName).Indexes().List(ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list indexes: " + err.Error()})
@@ -169,12 +152,10 @@ func GetCollectionDetails(c *gin.Context) {
 			indexes = append(indexes, idx)
 		}
 	}
-
 	myPerm := "readAndWrite"
 	if !isAdmin {
 		myPerm = getDbPermissionString(currentUser, envID, dbName)
 	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"database":     dbName,
 		"collection":   collName,
@@ -189,20 +170,17 @@ func GetCollectionDetails(c *gin.Context) {
 func CreateCollection(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
-
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
-
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
-
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
 	isAdmin := utils.IsAdmin(currentUser)
@@ -217,7 +195,6 @@ func CreateCollection(c *gin.Context) {
 			return
 		}
 	}
-
 	var req struct {
 		CollectionName string `json:"collectionName"`
 	}
@@ -229,13 +206,11 @@ func CreateCollection(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "collectionName is required"})
 		return
 	}
-
 	decryptedConn, err := decrypt(env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decrypt connection string: " + err.Error()})
 		return
 	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	client, err := database.ConnectMongo(ctx, decryptedConn)
@@ -244,7 +219,6 @@ func CreateCollection(c *gin.Context) {
 		return
 	}
 	defer client.Disconnect(ctx)
-
 	collNames, err := client.Database(dbName).ListCollectionNames(ctx, bson.D{})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list collections: " + err.Error()})
@@ -256,12 +230,10 @@ func CreateCollection(c *gin.Context) {
 			return
 		}
 	}
-
 	if err := client.Database(dbName).CreateCollection(ctx, req.CollectionName); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create collection: " + err.Error()})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"message":    "Collection created successfully",
 		"database":   dbName,
@@ -275,20 +247,17 @@ func EditCollection(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 	oldCollName := c.Param("collName")
-
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
-
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
-
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
 	isAdmin := utils.IsAdmin(currentUser)
@@ -303,7 +272,6 @@ func EditCollection(c *gin.Context) {
 			return
 		}
 	}
-
 	var req struct {
 		NewCollectionName string `json:"newCollectionName"`
 	}
@@ -315,13 +283,11 @@ func EditCollection(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "newCollectionName is required"})
 		return
 	}
-
 	decryptedConn, err := decrypt(env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decrypt connection string: " + err.Error()})
 		return
 	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	client, err := database.ConnectMongo(ctx, decryptedConn)
@@ -330,20 +296,17 @@ func EditCollection(c *gin.Context) {
 		return
 	}
 	defer client.Disconnect(ctx)
-
 	oldNamespace := fmt.Sprintf("%s.%s", dbName, oldCollName)
 	newNamespace := fmt.Sprintf("%s.%s", dbName, req.NewCollectionName)
-
 	cmd := bson.D{
-		{Key: "renameCollection", Value: oldNamespace},
-		{Key: "to", Value: newNamespace},
-		{Key: "dropTarget", Value: false},
+		{"renameCollection", oldNamespace},
+		{"to", newNamespace},
+		{"dropTarget", false},
 	}
 	if err := client.Database("admin").RunCommand(ctx, cmd).Err(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to rename collection: %v", err)})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"message":       "Collection renamed successfully",
 		"oldCollection": oldCollName,
@@ -357,20 +320,17 @@ func DeleteCollection(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
 	collName := c.Param("collName")
-
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
-
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
-
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
 	isAdmin := utils.IsAdmin(currentUser)
@@ -385,13 +345,11 @@ func DeleteCollection(c *gin.Context) {
 			return
 		}
 	}
-
 	decryptedConn, err := decrypt(env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decrypt connection string: " + err.Error()})
 		return
 	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	client, err := database.ConnectMongo(ctx, decryptedConn)
@@ -400,12 +358,10 @@ func DeleteCollection(c *gin.Context) {
 		return
 	}
 	defer client.Disconnect(ctx)
-
 	if err := client.Database(dbName).Collection(collName).Drop(ctx); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to drop collection: " + err.Error()})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"message":    "Collection deleted successfully",
 		"database":   dbName,

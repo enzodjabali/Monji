@@ -24,18 +24,15 @@ func GetDatabases(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
-
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
-
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
 	isAdmin := utils.IsAdmin(currentUser)
-
 	if !isAdmin {
 		hasEnvRead, err := utils.HasEnvPermission(currentUser, envID, "read")
 		if err != nil {
@@ -51,12 +48,12 @@ func GetDatabases(c *gin.Context) {
 		}
 	}
 
+	// Decrypt connection string before use.
 	decryptedConn, err := decrypt(env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decrypt connection string: " + err.Error()})
 		return
 	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	client, err := database.ConnectMongo(ctx, decryptedConn)
@@ -74,7 +71,6 @@ func GetDatabases(c *gin.Context) {
 
 	var resultList []map[string]interface{}
 	var totalSize float64
-
 	for _, dbInfo := range dbs.Databases {
 		if isAdmin {
 			resultList = append(resultList, map[string]interface{}{
@@ -102,7 +98,6 @@ func GetDatabases(c *gin.Context) {
 			}
 		}
 	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"Databases": resultList,
 		"TotalSize": totalSize,
@@ -117,14 +112,12 @@ func CreateDatabase(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
-
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
-
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
 	hasEnvWrite, err := utils.HasEnvPermission(currentUser, envID, "write")
@@ -136,7 +129,6 @@ func CreateDatabase(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "No permission on this environment"})
 		return
 	}
-
 	var req struct {
 		DbName            string `json:"dbName"`
 		InitialCollection string `json:"initialCollection"`
@@ -149,13 +141,11 @@ func CreateDatabase(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Both dbName and initialCollection are required"})
 		return
 	}
-
 	decryptedConn, err := decrypt(env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decrypt connection string: " + err.Error()})
 		return
 	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	client, err := database.ConnectMongo(ctx, decryptedConn)
@@ -164,7 +154,6 @@ func CreateDatabase(c *gin.Context) {
 		return
 	}
 	defer client.Disconnect(ctx)
-
 	dbList, err := client.ListDatabaseNames(ctx, bson.M{})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list databases: " + err.Error()})
@@ -176,12 +165,10 @@ func CreateDatabase(c *gin.Context) {
 			return
 		}
 	}
-
 	if err := client.Database(req.DbName).CreateCollection(ctx, req.InitialCollection); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create collection: " + err.Error()})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"message":           "Database created successfully",
 		"database":          req.DbName,
@@ -193,20 +180,17 @@ func CreateDatabase(c *gin.Context) {
 func EditDatabase(c *gin.Context) {
 	envIDStr := c.Param("id")
 	oldDbName := c.Param("dbName")
-
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
-
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
-
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
 	hasEnvWrite, err := utils.HasEnvPermission(currentUser, envID, "write")
@@ -218,7 +202,6 @@ func EditDatabase(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "No permission on environment"})
 		return
 	}
-
 	var req struct {
 		NewDbName string `json:"newDbName"`
 	}
@@ -230,23 +213,19 @@ func EditDatabase(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "newDbName is required"})
 		return
 	}
-
 	decryptedConn, err := decrypt(env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decrypt connection string: " + err.Error()})
 		return
 	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-
 	client, err := database.ConnectMongo(ctx, decryptedConn)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to MongoDB"})
 		return
 	}
 	defer client.Disconnect(ctx)
-
 	dbList, err := client.ListDatabaseNames(ctx, bson.M{})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list databases: " + err.Error()})
@@ -258,32 +237,28 @@ func EditDatabase(c *gin.Context) {
 			return
 		}
 	}
-
 	collNames, err := client.Database(oldDbName).ListCollectionNames(ctx, bson.D{})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list collections: " + err.Error()})
 		return
 	}
-
 	for _, coll := range collNames {
 		oldNamespace := fmt.Sprintf("%s.%s", oldDbName, coll)
 		newNamespace := fmt.Sprintf("%s.%s", req.NewDbName, coll)
 		cmd := bson.D{
-			{Key: "renameCollection", Value: oldNamespace},
-			{Key: "to", Value: newNamespace},
-			{Key: "dropTarget", Value: false},
+			{"renameCollection", oldNamespace},
+			{"to", newNamespace},
+			{"dropTarget", false},
 		}
 		if err := client.Database("admin").RunCommand(ctx, cmd).Err(); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to rename collection %s: %v", coll, err)})
 			return
 		}
 	}
-
 	if err := client.Database(oldDbName).Drop(ctx); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to drop old database: " + err.Error()})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Database renamed successfully",
 		"oldName": oldDbName,
@@ -295,20 +270,17 @@ func EditDatabase(c *gin.Context) {
 func DeleteDatabase(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
-
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
-
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
-
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
 	hasEnvWrite, err := utils.HasEnvPermission(currentUser, envID, "write")
@@ -320,13 +292,11 @@ func DeleteDatabase(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "No permission on environment"})
 		return
 	}
-
 	decryptedConn, err := decrypt(env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decrypt connection string: " + err.Error()})
 		return
 	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	client, err := database.ConnectMongo(ctx, decryptedConn)
@@ -335,12 +305,10 @@ func DeleteDatabase(c *gin.Context) {
 		return
 	}
 	defer client.Disconnect(ctx)
-
 	if err := client.Database(dbName).Drop(ctx); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to drop database: " + err.Error()})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"message":  "Database deleted successfully",
 		"database": dbName,
@@ -352,23 +320,19 @@ func DeleteDatabase(c *gin.Context) {
 func GetDatabaseDetails(c *gin.Context) {
 	envIDStr := c.Param("id")
 	dbName := c.Param("dbName")
-
 	envID, err := strconv.Atoi(envIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid environment ID"})
 		return
 	}
-
 	var env models.Environment
 	row := database.DB.QueryRow(`SELECT id, name, connection_string, created_by FROM environments WHERE id = ?`, envID)
 	if err := row.Scan(&env.ID, &env.Name, &env.ConnectionString, &env.CreatedBy); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Environment not found"})
 		return
 	}
-
 	currentUserRaw, _ := c.Get("user")
 	currentUser := currentUserRaw.(models.User)
-
 	hasEnvRead, err := utils.HasEnvPermission(currentUser, envID, "read")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -378,7 +342,6 @@ func GetDatabaseDetails(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "No permission on environment"})
 		return
 	}
-
 	hasDbRead, err := utils.HasDBPermission(currentUser, envID, dbName, "read")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -388,13 +351,11 @@ func GetDatabaseDetails(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "No permission on database"})
 		return
 	}
-
 	decryptedConn, err := decrypt(env.ConnectionString)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decrypt connection string: " + err.Error()})
 		return
 	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	client, err := database.ConnectMongo(ctx, decryptedConn)
@@ -403,24 +364,20 @@ func GetDatabaseDetails(c *gin.Context) {
 		return
 	}
 	defer client.Disconnect(ctx)
-
 	var stats bson.M
 	if err := client.Database(dbName).RunCommand(ctx, bson.D{{Key: "dbStats", Value: 1}}).Decode(&stats); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get database stats: " + err.Error()})
 		return
 	}
-
 	collNames, err := client.Database(dbName).ListCollectionNames(ctx, bson.D{})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list collections: " + err.Error()})
 		return
 	}
-
 	myPerm := "readAndWrite"
 	if !utils.IsAdmin(currentUser) {
 		myPerm = getDbPermissionString(currentUser, envID, dbName)
 	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"database":     dbName,
 		"stats":        stats,
