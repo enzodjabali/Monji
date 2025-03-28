@@ -22,14 +22,19 @@
     <!-- 1) Always link to /environments -->
     <li>
       <div class="flex items-center">
-        <!-- Icon - you can change it to any symbol/text you want -->
         <svg
-          class="w-4 h-4 mr-1 text-gray-400"
+          class="w-6 h-6 text-gray-400 mx-1"
           fill="currentColor"
           viewBox="0 0 20 20"
           aria-hidden="true"
         >
-          <path d="M10 3.172l5.95 5.95-1.414 1.414L10 5.586l-4.536 4.95L4.05 9.121z" />
+          <path
+            fill-rule="evenodd"
+            d="M7.293 14.707a1 1 0 010-1.414L10.586 10 
+               7.293 6.707a1 1 0 011.414-1.414l4 4a1 
+               1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+            clip-rule="evenodd"
+          />
         </svg>
         <a
           href="/environments"
