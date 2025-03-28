@@ -35,3 +35,11 @@ docker compose up --build
 **Default credentials:**<br>
 Email: `admin@example.com`<br>
 Password: `admin`<br>
+
+---
+
+## License
+
+Monji is licensed under the [GNU General Public License v3.0](LICENSE).
+
+© 2025 Enzo DJABALI
