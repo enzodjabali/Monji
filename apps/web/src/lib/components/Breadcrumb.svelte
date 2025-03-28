@@ -38,7 +38,7 @@
         </svg>
         <a
           href="/environments"
-          class="text-blue-600 hover:underline font-medium"
+          class="text-gray-800 hover:underline font-medium"
         >
           Environments
         </a>
@@ -66,7 +66,7 @@
           </svg>
           <a
             href={`/environments/${environmentId}/databases`}
-            class="text-blue-600 hover:underline font-medium"
+            class="text-gray-800 hover:underline font-medium"
           >
             {environmentName}
           </a>
@@ -95,7 +95,7 @@
           </svg>
           <a
             href={`/environments/${environmentId}/databases/${databaseName}/collections`}
-            class="text-blue-600 hover:underline font-medium"
+            class="text-gray-800 hover:underline font-medium"
           >
             {databaseName}
           </a>
@@ -124,7 +124,7 @@
           </svg>
           <a
             href={`/environments/${environmentId}/databases/${databaseName}/collections/${collectionName}/documents`}
-            class="text-blue-600 hover:underline font-medium"
+            class="text-gray-800 hover:underline font-medium"
           >
             {collectionName}
           </a>
@@ -152,7 +152,7 @@
           </svg>
           <a
             href={`/environments/${environmentId}/databases/${databaseName}/collections/${collectionName}/documents/${documentId}`}
-            class="text-blue-600 hover:underline font-medium"
+            class="text-gray-800 hover:underline font-medium"
           >
             {documentId}
           </a>
