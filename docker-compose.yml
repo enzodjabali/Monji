@@ -6,7 +6,10 @@ services:
     depends_on:
       - mongodb
     environment:
+      - PORT=8080
+      - SQLITE_PATH=/data/sqlite/users.db
       - MONGO_URI=mongodb://root:strongpassword@mongodb:27017
+      - JWT_SECRET=supersecretkey
     # Mount a volume for the SQLite database (it will store /data/sqlite/users.db)
     volumes:
       - sqlite_data:/data/sqlite
